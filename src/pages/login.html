@@ -1,0 +1,55 @@
+
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+        rel="stylesheet">
+</head>
+
+<body>
+    <main class="d-flex justify-content-center align-items-center min-vh-100">
+        <div class="card col-6" style="background-color: #ffffff;">
+            <h5 class="card-header" style="background-color: #f8f9fa; color: #000000;">Login
+            </h5>
+            <div class="card-body" style="background-color: #ffffff;">
+                <form action="../index.html" id="formulario">
+                    <div class="mb-3">
+                        <label for="nomeInput" class="form-label">
+                            Nome
+                        </label>
+                        <input type="text" class="form-control" id="nomeInput">
+                        <div class="form-text">
+                            Não compartilhamos suas informações com ninguém.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="emailInput" class="form-label">
+                            Email
+                        </label>
+                        <input type="email" class="form-control" id="emailInput">
+                        <div class="form-text">
+                            Não compartilhamos suas informações com ninguém.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="senhaInput" class="form-label">
+                            Senha
+                        </label>
+                        <input type="password" class="form-control" id="senhaInput">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="background-color: #0d6efd; border: none;"
+                        onclick="login()">
+                        Login
+                    </button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+</body>
+</html>
