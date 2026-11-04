@@ -3,28 +3,61 @@ import { open } from 'sqlite';
 
 const bcrypt = require('bcrypt');
 
-// Função para criar usuários na tabela usuários no banco
+// Função para criar usuário comum na tabela usuários no banco
 async function createUser(name, email, password) {
     const db = await open({
         filename: './banco.db',
         driver: sqlite3.Database,
     });
+    try {
+        await db.run(`CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user'
+                CHECK (role IN ('user', 'admin'))
+        )`);
 
-    await db.run(`CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL
-    )`);
+        // Criptografia da senha
+        const passwordHash = await bcrypt.hash(password, 10);
 
-    // Criptografia da senha
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    await db.run('INSERT INTO users (name, email, password) VALUES (?, ?, ?)', [name, email, passwordHash]);
-
+        await db.run('INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)', [name, email, passwordHash, role]);
+    } finally {
     await db.close();
+    }
+}
+
+// Função para criar usuário admin na tabela usuários no banco
+async function createAdmin(name, email, password) {
+    const db = await open({
+        filename: './banco.db',
+        driver: sqlite3.Database,
+    });
+
+    try {
+        await db.run(`CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user'
+                CHECK (role IN ('user', 'admin'))
+        )`);
+
+        const passwordHash = await bcrypt.hash(password, 10);
+
+        await db.run(
+            `INSERT INTO users (name, email, password, role)
+             VALUES (?, ?, ?, ?)`,
+            [name, email, passwordHash, 'admin']
+        );
+    } finally {
+        await db.close();
+    }
 }
 
 module.exports = {
     createUser,
+    createAdmin,
 };
