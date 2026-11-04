@@ -9,6 +9,7 @@ async function createUser(name, email, password) {
         filename: './banco.db',
         driver: sqlite3.Database,
     });
+
     try {
         await db.run(`CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,7 +23,10 @@ async function createUser(name, email, password) {
         // Criptografia da senha
         const passwordHash = await bcrypt.hash(password, 10);
 
-        await db.run('INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)', [name, email, passwordHash, role]);
+        await db.run(
+            `INSERT INTO users (name, email, password, role)
+             VALUES (?, ?, ?, ?)`,
+            [name, email, passwordHash, role]);
     } finally {
     await db.close();
     }
@@ -44,7 +48,8 @@ async function createAdmin(name, email, password) {
             role TEXT NOT NULL DEFAULT 'user'
                 CHECK (role IN ('user', 'admin'))
         )`);
-
+        
+        // Criptografia da senha
         const passwordHash = await bcrypt.hash(password, 10);
 
         await db.run(
@@ -53,8 +58,24 @@ async function createAdmin(name, email, password) {
             [name, email, passwordHash, 'admin']
         );
     } finally {
-        await db.close();
+    await db.close();
     }
+}
+
+// Função para criar tabela de estoque no banco
+async function createStock() {
+    const db = await open({
+        filename: './banco.db',
+        driver: sqlite3.Database,
+    });
+}
+
+// Função para criar tabela de empréstimos no banco
+async function createLoan() {
+    const db = await open({
+        filename: './banco.db',
+        driver: sqlite3.Database,
+    });
 }
 
 module.exports = {
