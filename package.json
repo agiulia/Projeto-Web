@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/agiulia/Projeto-Web#readme",
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "express": "^5.3.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^6.0.1"
