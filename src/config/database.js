@@ -2,7 +2,7 @@ import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 
 // Função para criar usuários na tabela usuários no banco
-function assync createUser(name, email, password) {
+async function createUser(name, email, password) {
     const db = await open({
         filename: './banco.db',
         driver: sqlite3.Database,
