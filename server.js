@@ -1,3 +1,8 @@
+const dotenv = require('dotenv');
+dotenv.config();
+
+console.log('Chave carregada?', !!process.env.GOOGLE_BOOKS_API_KEY);
+
 const app = require('./src/app');
 const { initializeDB } = require('./src/config/database');
 
