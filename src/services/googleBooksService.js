@@ -18,7 +18,6 @@ async function searchBooks(term) {
     
     const data = await response.json();
     
-    // busca sem resultado: o Google nem manda "items"
     if (!data.items) {
         return [];
     }
