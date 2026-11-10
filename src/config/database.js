@@ -17,17 +17,27 @@ async function initializeDB() {
         await db.run(`
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                email TEXT NOT NULL UNIQUE,
-                password TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'user'
+                name VARCHAR(50) NOT NULL,
+                email VARCHAR(50) NOT NULL UNIQUE,
+                password VARCHAR(50) NOT NULL,
+                role VARCHAR(50) NOT NULL DEFAULT 'user'
                     CHECK (role IN ('user', 'admin'))
-            )
+            );
+
+            CREATE TABLE IF NOT EXISTS books (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            isbn VARCHAR(20) UNIQUE,
+            titulo VARCHAR(225),
+            autor VARCHAR(225),
+            editora VARCHAR(100),
+            qtd_total INT DEFAULT 1,
+            qtd_disponivel DEFAULT 1,
+            );
         `);
     } finally {
         await db.close();
     }
-}
+};
 
 // Função para criar usuário na tabela usuários no banco
 async function createUser(name, email, password, role = 'user') {
@@ -49,7 +59,24 @@ async function createUser(name, email, password, role = 'user') {
     } finally {
         await db.close();
     }
-}
+};
+
+// Busca por usuário no banco de dados pelo nome
+async function searchUser(name) {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+    try {
+        const user = await db.get(
+            `SELECT * FROM users WHERE name = ?`,
+            [name]
+        );
+        return user;
+    } finally {
+        await db.close();
+    }
+};
 
 // Função para criar tabela de estoque no banco
 async function createStock() {
@@ -57,7 +84,7 @@ async function createStock() {
         filename: dbPath,
         driver: sqlite3.Database,
     });
-}
+};
 
 // Função para criar tabela de empréstimos no banco
 async function createLoan() {
@@ -65,7 +92,7 @@ async function createLoan() {
         filename: dbPath,
         driver: sqlite3.Database,
     });
-}
+};
 
 module.exports = {
     initializeDB,
