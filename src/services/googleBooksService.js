@@ -3,13 +3,13 @@ const BASE_URL = 'https://www.googleapis.com/books/v1/volumes';
 function buildUrl(term) {
     const query = encodeURIComponent(term);
     const apiKey = process.env.GOOGLE_BOOKS_API_KEY;
-
     return `${BASE_URL}?q=${query}&key=${apiKey}`;
+
 }
 
 async function searchBooks(term) {
     const url = buildUrl(term);
-
+    console.log(url);
     const response = await fetch(url);
 
     if (!response.ok) {
