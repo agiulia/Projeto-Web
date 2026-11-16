@@ -175,6 +175,38 @@ async function updateUser(id, name, email) {
     }
 };
 
+async function updateRole(id, newRole) {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        const user = await db.get(
+            'SELECT * FROM users WHERE id = ?',
+            [id]
+        );
+
+        if (!user) {
+            throw new Error('Usuário não encontrado.');
+        }
+
+        if (!['user', 'admin'].includes(newRole)) {
+            throw new Error('Nível de acesso inválido.');
+        }
+
+        await db.run(
+            `UPDATE users
+             SET role = ?
+             WHERE id = ?`,
+            [newRole, id]
+        );
+
+    } finally {
+        await db.close();
+    }
+};
+
 async function updatePassword(id, currentPassword, newPassword) {
     const db = await open({
         filename: dbPath,
@@ -216,6 +248,94 @@ async function updatePassword(id, currentPassword, newPassword) {
     }
 };
 
+async function updateBook(id, titulo, autor, editora, qtd_total, qtd_disponivel) {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        const book = await db.get(
+            'SELECT * FROM books WHERE id = ?',
+            [id]
+        );
+
+        if (!book) {
+            throw new Error('Livro não encontrado.');
+        }
+
+        const newTitulo = titulo ?? book.titulo;
+        const newAutor = autor ?? book.autor;
+        const newEditora = editora ?? book.editora;
+        const newQtdTotal = qtd_total ?? book.qtd_total;
+        const newQtdDisponivel = qtd_disponivel ?? book.qtd_disponivel;
+
+        await db.run(
+            `UPDATE books
+             SET titulo = ?, autor = ?, editora = ?, qtd_total = ?, qtd_disponivel = ?
+             WHERE id = ?`,
+            [newTitulo, newAutor, newEditora, newQtdTotal, newQtdDisponivel, id]
+        );
+
+    } finally {
+        await db.close();
+    }
+};
+
+async function deleteUser(id) {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        const user = await db.get(
+            'SELECT * FROM users WHERE id = ?',
+            [id]
+        );
+
+        if (!user) {
+            throw new Error('Usuário não encontrado.');
+        }
+
+        await db.run(
+            `DELETE FROM users
+             WHERE id = ?`,
+            [id]
+        );
+
+    } finally {
+        await db.close();
+    }
+};
+
+async function deleteBook(id) {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        const book = await db.get(
+            'SELECT * FROM books WHERE id = ?',
+            [id]
+        );
+
+        if (!book) {
+            throw new Error('Livro não encontrado.');
+        }
+
+        await db.run(
+            `DELETE FROM books
+             WHERE id = ?`,
+            [id]
+        );
+
+    } finally {
+        await db.close();
+    }
+};
+
 module.exports = {
     createUser,
     searchUserbyName,
@@ -225,5 +345,9 @@ module.exports = {
     searchBookbyAuthor,
     searchBookbyEditor,
     updateUser,
+    updateRole,
     updatePassword,
+    updateBook,
+    deleteUser,
+    deleteBook
 };
