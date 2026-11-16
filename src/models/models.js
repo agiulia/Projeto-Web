@@ -336,6 +336,44 @@ async function deleteBook(id) {
     }
 };
 
+async function getAllUsers() {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        const users = await db.all(
+            `SELECT id, name, email, role
+             FROM users`
+        );
+
+        return users;
+
+    } finally {
+        await db.close();
+    }
+};
+
+async function getAllBooks() {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        const books = await db.all(
+            `SELECT id, name, email, role
+             FROM books`
+        );
+
+        return books;
+
+    } finally {
+        await db.close();
+    }
+}
+
 module.exports = {
     createUser,
     searchUserbyName,
@@ -349,5 +387,7 @@ module.exports = {
     updatePassword,
     updateBook,
     deleteUser,
-    deleteBook
+    deleteBook,
+    getAllUsers,
+    getAllBooks
 };
