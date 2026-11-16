@@ -175,6 +175,7 @@ async function updateUser(id, name, email) {
     }
 };
 
+// Atualizar nível de acesso do usuário no banco de dados
 async function updateRole(id, newRole) {
     const db = await open({
         filename: dbPath,
@@ -207,6 +208,7 @@ async function updateRole(id, newRole) {
     }
 };
 
+// Atualizar senha do usuário no banco de dados
 async function updatePassword(id, currentPassword, newPassword) {
     const db = await open({
         filename: dbPath,
@@ -248,6 +250,7 @@ async function updatePassword(id, currentPassword, newPassword) {
     }
 };
 
+// Atualizar informações do livro no banco de dados
 async function updateBook(id, titulo, autor, editora, qtd_total, qtd_disponivel) {
     const db = await open({
         filename: dbPath,
@@ -282,6 +285,7 @@ async function updateBook(id, titulo, autor, editora, qtd_total, qtd_disponivel)
     }
 };
 
+// Deletar usuário do banco de dados
 async function deleteUser(id) {
     const db = await open({
         filename: dbPath,
@@ -309,6 +313,7 @@ async function deleteUser(id) {
     }
 };
 
+// Deletar livro do banco de dados
 async function deleteBook(id) {
     const db = await open({
         filename: dbPath,
@@ -336,6 +341,7 @@ async function deleteBook(id) {
     }
 };
 
+// Selecionar todos os usuários do banco de dados
 async function getAllUsers() {
     const db = await open({
         filename: dbPath,
@@ -355,6 +361,7 @@ async function getAllUsers() {
     }
 };
 
+// Selecionar todos os livros do banco de dados
 async function getAllBooks() {
     const db = await open({
         filename: dbPath,
