@@ -33,12 +33,18 @@ async function initializeDB() {
                 qtd_total INT DEFAULT 1,
                 qtd_disponivel INT DEFAULT 1
             );
+
+            CREATE TABLE IF NOT EXISTS loans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INT NOT NULL,
+                book_id INT NOT NULL,
         `);
     } finally {
         await db.close();
     }
 };
 
+// Função para importar livros da API do Google Books -> Precisa de correção
 async function importBooks(term) {
     const db = await open({
         filename: './banco.db',
