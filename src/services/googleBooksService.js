@@ -15,9 +15,9 @@ async function searchBooks(term) {
     if (!response.ok) {
         throw new Error('Erro ao buscar livros no Google');
     }
-    
+
     const data = await response.json();
-    
+
     if (!data.items) {
         return [];
     }
@@ -26,10 +26,14 @@ async function searchBooks(term) {
         const info = item.volumeInfo;
 
         return {
+            isbn: info.industryIdentifiers?.find(
+                item => item.type === 'ISBN_13'
+            )?.identifier || null,
             title: info.title || 'Sem título',
-            authors: info.authors || ['Autor desconhecido'],
+            authors: info.authors || [],
             description: info.description || 'Sem descrição',
-            thumbnail: info.imageLinks ? info.imageLinks.thumbnail : null
+            thumbnail: info.imageLinks?.thumbnail || null,
+            publisher: info.publisher || null
         };
     });
 }
@@ -39,4 +43,6 @@ async function searchBooksByAuthor(author) {
     return searchBooks(term);
 }
 
-module.exports = { searchBooks, searchBooksByAuthor };
+module.exports = {
+    searchBooks, searchBooksByAuthor,
+};
