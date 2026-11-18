@@ -1,7 +1,9 @@
+//const path = require('path');
 const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
-
 const bcrypt = require('bcrypt');
+
+const { dbPath } = require('../config/database');
 
 // Função para criar usuário na tabela usuários no banco
 async function createUser(name, email, password, role = 'user') {

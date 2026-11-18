@@ -12,7 +12,7 @@ async function initializeDB() {
     });
 
     try {
-        await db.run(`
+        await db.exec(`
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name VARCHAR(50) NOT NULL,
@@ -38,6 +38,13 @@ async function initializeDB() {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INT NOT NULL,
                 book_id INT NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'pendente'
+                    CHECK (status IN ('pendente', 'aceito', 'recusado', 'devolvido')),
+                data_solicitacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+                data_devolucao DATETIME,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (book_id) REFERENCES books(id)
+            );
         `);
     } finally {
         await db.close();
@@ -75,6 +82,7 @@ async function importBooks(term) {
 }
 
 module.exports = {
+    dbPath,
     initializeDB,
     importBooks
 };
