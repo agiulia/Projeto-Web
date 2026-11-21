@@ -4,6 +4,7 @@ const { open } = require('sqlite');
 const bcrypt = require('bcrypt');
 
 const { dbPath } = require('../config/database');
+const { search } = require('../app');
 
 // Função para criar usuário na tabela usuários no banco
 async function createUser(name, email, password, role = 'user') {
@@ -13,6 +14,15 @@ async function createUser(name, email, password, role = 'user') {
     });
 
     try {
+        const existingUser = await db.get(
+            'SELECT id FROM users WHERE email = ?',
+            [email]
+        );
+
+        if (existingUser) {
+            throw new Error('Este e-mail já está cadastrado.');
+        }
+
         // Criptografia da senha
         const passwordHash = await bcrypt.hash(password, 12);
 
@@ -35,12 +45,103 @@ async function createBook(isbn = null, titulo, autor, thumbnail, descricao, edit
     });
 
     try {
+        if (isbn) {
+            const existingBook = await db.get(
+                'SELECT * FROM books WHERE isbn = ?',
+                [isbn]
+            );
+
+            if (existingBook) {
+                return {
+                    message: 'Este livro já está cadastrado.',
+                    book: existingBook
+                };
+            }
+        }
+
+        if (
+            !Number.isInteger(qtd_total) ||
+            !Number.isInteger(qtd_disponivel) ||
+            qtd_total < 0 ||
+            qtd_disponivel < 0 ||
+            qtd_disponivel > qtd_total
+        ) {
+            throw new Error('Quantidades de livros inválidas.');
+        }
 
         await db.run(
             `INSERT INTO users (isbn, titulo, autor, thumbnail, descricao, editora, qtd_total, qtd_disponivel)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [isbn, titulo, autor, thumbnail, descricao, editora, qtd_total, qtd_disponivel]
         );
+
+    } finally {
+        await db.close();
+    }
+};
+
+// Função para criar empréstimo na tabela empréstimos no banco
+async function createLoan(user_id, book_id, prazoDias = 7) {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        const user = await db.get(
+            'SELECT id FROM users WHERE id = ?',
+            [user_id]
+        );
+
+        if (!user) {
+            throw new Error('Usuário não encontrado.');
+        }
+
+        const book = await db.get(
+            'SELECT * FROM books WHERE id = ?',
+            [book_id]
+        );
+
+        if (!book) {
+            throw new Error('Livro não encontrado.');
+        }
+
+        if (book.qtd_disponivel <= 0) {
+            throw new Error('Não existem exemplares disponíveis.');
+        }
+
+        if (!Number.isInteger(prazoDias) || prazoDias <= 0) {
+            throw new Error('Prazo de empréstimo inválido.');
+        }
+
+        const existingLoan = await db.get(
+            `SELECT id FROM loans
+             WHERE user_id = ?
+             AND book_id = ?
+             AND status IN ('pendente', 'aceito')`,
+            [user_id, book_id]
+        );
+
+        if (existingLoan) {
+            throw new Error('Este usuário já possui um empréstimo ativo ou pendente deste livro.');
+        }
+
+        const result = await db.run(
+            `INSERT INTO loans
+            (user_id, book_id, status, data_prevista_devolucao)
+            VALUES (?, ?, 'pendente', datetime('now', ?))`,
+            [user_id, book_id, `+${prazoDias} days`]
+        );
+
+        const loan = await db.get(
+            'SELECT * FROM loans WHERE id = ?',
+            [result.lastID]
+        );
+
+        return {
+            message: 'Solicitação de empréstimo criada com sucesso!',
+            loan
+        };
 
     } finally {
         await db.close();
@@ -105,7 +206,7 @@ async function searchBookbyAuthor(autor) {
         driver: sqlite3.Database,
     });
     try {
-        const user = await db.get(
+        const user = await db.all(
             `SELECT * FROM books WHERE autor = ?`,
             [autor]
         );
@@ -122,11 +223,51 @@ async function searchBookbyEditor(editora) {
         driver: sqlite3.Database,
     });
     try {
-        const user = await db.get(
+        const user = await db.all(
             `SELECT * FROM books WHERE editora = ?`,
             [editora]
         );
         return user;
+    } finally {
+        await db.close();
+    }
+};
+
+// Busca por empréstimos no banco de dados pelo ID do usuário
+async function searchLoansByUser(user_id) {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        const loans = await db.all(
+            'SELECT * FROM loans WHERE user_id = ?',
+            [user_id]
+        );
+
+        return loans;
+
+    } finally {
+        await db.close();
+    }
+};
+
+// Busca por empréstimos no banco de dados pelo ID do livro
+async function searchLoansByBook(book_id) {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        const loans = await db.all(
+            'SELECT * FROM loans WHERE book_id = ?',
+            [book_id]
+        );
+
+        return loans;
+
     } finally {
         await db.close();
     }
@@ -275,12 +416,283 @@ async function updateBook(id, titulo, autor, editora, qtd_total, qtd_disponivel)
         const newQtdTotal = qtd_total ?? book.qtd_total;
         const newQtdDisponivel = qtd_disponivel ?? book.qtd_disponivel;
 
+        if (!Number.isInteger(newQtdTotal) || newQtdTotal < 0) {
+            throw new Error('Quantidade total inválida.');
+        }
+        
+        if (!Number.isInteger(newQtdDisponivel) || newQtdDisponivel < 0) {
+            throw new Error('Quantidade disponível inválida.');
+        }
+        
+        if (newQtdDisponivel > newQtdTotal) {
+            throw new Error('A quantidade disponível não pode ser maior que a total.');
+        }
+
         await db.run(
             `UPDATE books
              SET titulo = ?, autor = ?, editora = ?, qtd_total = ?, qtd_disponivel = ?
              WHERE id = ?`,
             [newTitulo, newAutor, newEditora, newQtdTotal, newQtdDisponivel, id]
         );
+
+    } finally {
+        await db.close();
+    }
+};
+
+// Função para aceitar empréstimo na tabela empréstimos no banco
+async function acceptLoan(id, prazoDias = 7) {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        if (!Number.isInteger(prazoDias) || prazoDias <= 0) {
+            throw new Error('Prazo de empréstimo inválido.');
+        }
+
+        const loan = await db.get(
+            'SELECT * FROM loans WHERE id = ?',
+            [id]
+        );
+
+        if (!loan) {
+            throw new Error('Empréstimo não encontrado.');
+        }
+
+        if (loan.status !== 'pendente') {
+            throw new Error('Este empréstimo não está pendente.');
+        }
+
+        await db.run('BEGIN TRANSACTION');
+
+        const book = await db.get(
+            'SELECT * FROM books WHERE id = ?',
+            [loan.book_id]
+        );
+
+        if (!book || book.qtd_disponivel <= 0) {
+            throw new Error('Não existem exemplares disponíveis.');
+        }
+
+        const resultDate = await db.get(
+            `SELECT datetime('now', ?) AS data`,
+            [`+${prazoDias} days`]
+        );
+
+        await db.run(
+            `UPDATE loans
+             SET status = 'aceito',
+                 data_prevista_devolucao = ?
+             WHERE id = ?`,
+            [resultDate.data, id]
+        );
+
+        await db.run(
+            `UPDATE books
+             SET qtd_disponivel = qtd_disponivel - 1
+             WHERE id = ?`,
+            [loan.book_id]
+        );
+
+        await db.run('COMMIT');
+
+        const updatedLoan = await db.get(
+            'SELECT * FROM loans WHERE id = ?',
+            [id]
+        );
+
+        return {
+            message: 'Empréstimo aprovado com sucesso!',
+            loan: updatedLoan
+        };
+
+    } catch (error) {
+        await db.run('ROLLBACK');
+        throw error;
+
+    } finally {
+        await db.close();
+    }
+};
+
+// Função para recusar empréstimo na tabela empréstimos no banco
+async function rejectLoan(id) {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        const loan = await db.get(
+            'SELECT * FROM loans WHERE id = ?',
+            [id]
+        );
+
+        if (!loan) {
+            throw new Error('Empréstimo não encontrado.');
+        }
+
+        if (loan.status !== 'pendente') {
+            throw new Error('Este empréstimo não está pendente.');
+        }
+
+        await db.run(
+            `UPDATE loans
+             SET status = 'recusado'
+             WHERE id = ?`,
+            [id]
+        );
+
+        const updatedLoan = await db.get(
+            'SELECT * FROM loans WHERE id = ?',
+            [id]
+        );
+
+        return {
+            message: 'Empréstimo recusado com sucesso!',
+            loan: updatedLoan
+        };
+
+    } finally {
+        await db.close();
+    }
+};
+
+// Função para devolver livro na tabela empréstimos no banco
+async function returnLoan(id) {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        await db.run('BEGIN TRANSACTION');
+
+        const loan = await db.get(
+            'SELECT * FROM loans WHERE id = ?',
+            [id]
+        );
+
+        if (!loan) {
+            throw new Error('Empréstimo não encontrado.');
+        }
+
+        if (loan.status !== 'aceito') {
+            throw new Error('Este empréstimo não está ativo ou já foi devolvido.');
+        }
+
+        const book = await db.get(
+            'SELECT * FROM books WHERE id = ?',
+            [loan.book_id]
+        );
+
+        if (!book) {
+            throw new Error('Livro não encontrado.');
+        }
+
+        await db.run(
+            `UPDATE loans
+             SET status = 'devolvido',
+                 data_devolucao = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [id]
+        );
+
+        await db.run(
+            `UPDATE books
+             SET qtd_disponivel = qtd_disponivel + 1
+             WHERE id = ?`,
+            [loan.book_id]
+        );
+
+        await db.run('COMMIT');
+
+        const updatedLoan = await db.get(
+            'SELECT * FROM loans WHERE id = ?',
+            [id]
+        );
+
+        return {
+            message: 'Livro devolvido com sucesso!',
+            loan: updatedLoan
+        };
+
+    } catch (error) {
+        await db.run('ROLLBACK');
+        throw error;
+
+    } finally {
+        await db.close();
+    }
+};
+
+// Função para estender o prazo do empréstimo no banco de dados
+async function updateLoan(id, diasAdicionais) {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        if (
+            !Number.isInteger(diasAdicionais) ||
+            diasAdicionais < 1 ||
+            diasAdicionais > 15
+        ) {
+            throw new Error(
+                'A renovação deve ser entre 1 e 15 dias.'
+            );
+        }
+
+        await db.run('BEGIN TRANSACTION');
+
+        const loan = await db.get(
+            'SELECT * FROM loans WHERE id = ?',
+            [id]
+        );
+
+        if (!loan) {
+            throw new Error('Empréstimo não encontrado.');
+        }
+
+        if (loan.status !== 'aceito') {
+            throw new Error(
+                'Somente empréstimos aceitos podem ser renovados.'
+            );
+        }
+
+        if (!loan.data_prevista_devolucao) {
+            throw new Error(
+                'Data prevista de devolução não encontrada.'
+            );
+        }
+
+        await db.run(
+            `UPDATE loans
+             SET data_prevista_devolucao =
+                 datetime(data_prevista_devolucao, ?),
+                 prazo_dias = prazo_dias + ?
+             WHERE id = ?`,
+            [`+${diasAdicionais} days`, diasAdicionais, id]
+        );
+
+        await db.run('COMMIT');
+
+        const updatedLoan = await db.get(
+            'SELECT * FROM loans WHERE id = ?',
+            [id]
+        );
+
+        return {
+            message: `Empréstimo renovado por mais ${diasAdicionais} dias!`,
+            loan: updatedLoan
+        };
+
+    } catch (error) {
+        await db.run('ROLLBACK');
+        throw error;
 
     } finally {
         await db.close();
@@ -343,6 +755,34 @@ async function deleteBook(id) {
     }
 };
 
+// Deletar empréstimo do banco de dados
+async function deleteLoan(id) {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        const loan = await db.get(
+            'SELECT * FROM loans WHERE id = ?',
+            [id]
+        );
+
+        if (!book) {
+            throw new Error('Empréstimo não encontrado.');
+        }
+
+        await db.run(
+            `DELETE FROM loans
+             WHERE id = ?`,
+            [id]
+        );
+
+    } finally {
+        await db.close();
+    }
+};
+
 // Selecionar todos os usuários do banco de dados
 async function getAllUsers() {
     const db = await open({
@@ -381,7 +821,27 @@ async function getAllBooks() {
     } finally {
         await db.close();
     }
-}
+};
+
+// Selecionar todos os empréstimos do banco de dados
+async function getAllLoans() {
+    const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database,
+    });
+
+    try {
+        const loans = await db.all(
+            `SELECT id, user_id, book_id, status, data_solicitacao, data_devolucao
+             FROM loans`
+        );
+
+        return loans;
+
+    } finally {
+        await db.close();
+    }
+};
 
 module.exports = {
     createUser,
@@ -391,12 +851,17 @@ module.exports = {
     searchBookbyName,
     searchBookbyAuthor,
     searchBookbyEditor,
+    searchLoansByUser,
+    searchLoansByBook,
     updateUser,
     updateRole,
     updatePassword,
     updateBook,
+    updateLoan,
     deleteUser,
     deleteBook,
+    deleteLoan,
     getAllUsers,
-    getAllBooks
+    getAllBooks,
+    getAllLoans
 };
