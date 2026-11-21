@@ -3,16 +3,14 @@ const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 const path = require('path');
 
-// Importe searchBooks do arquivo onde está implementada a API.
 const { searchBooks } = require('../services/googleBooks');
 
 const dbPath = path.join(__dirname, 'banco.db');
 
-// Abrir conexão com o banco
 async function openDB() {
     const db = await open({
         filename: dbPath,
-        driver: sqlite3.Database,
+        driver: sqlite3.Database
     });
 
     await db.exec('PRAGMA foreign_keys = ON');
@@ -20,7 +18,13 @@ async function openDB() {
     return db;
 }
 
-// Inicializar banco de dados
+// Verificar se uma coluna existe
+async function hasColumn(db, tableName, columnName) {
+    const columns = await db.all(`PRAGMA table_info(${tableName})`);
+
+    return columns.some(column => column.name === columnName);
+}
+
 async function initializeDB() {
     const db = await openDB();
 
@@ -38,13 +42,35 @@ async function initializeDB() {
             CREATE TABLE IF NOT EXISTS books (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 isbn VARCHAR(20) UNIQUE,
-                titulo VARCHAR(225),
-                autor VARCHAR(225),
+                titulo VARCHAR(225) NOT NULL,
                 thumbnail TEXT,
                 descricao TEXT,
                 editora VARCHAR(100),
-                qtd_total INTEGER NOT NULL DEFAULT 1,
+                qtd_total INTEGER NOT NULL DEFAULT 1
+                    CHECK (qtd_total >= 0),
                 qtd_disponivel INTEGER NOT NULL DEFAULT 1
+                    CHECK (
+                        qtd_disponivel >= 0
+                        AND qtd_disponivel <= qtd_total
+                    )
+            );
+
+            CREATE TABLE IF NOT EXISTS authors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome VARCHAR(225) NOT NULL COLLATE NOCASE UNIQUE
+            );
+
+            CREATE TABLE IF NOT EXISTS book_authors (
+                book_id INTEGER NOT NULL,
+                author_id INTEGER NOT NULL,
+
+                PRIMARY KEY (book_id, author_id),
+
+                FOREIGN KEY (book_id)
+                    REFERENCES books(id) ON DELETE CASCADE,
+
+                FOREIGN KEY (author_id)
+                    REFERENCES authors(id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS loans (
@@ -65,20 +91,152 @@ async function initializeDB() {
                 prazo_dias INTEGER NOT NULL DEFAULT 7
                     CHECK (prazo_dias BETWEEN 1 AND 30),
 
-                data_solicitacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+                data_solicitacao DATETIME
+                    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
                 data_prevista_devolucao DATETIME,
                 data_devolucao DATETIME,
 
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                FOREIGN KEY (book_id) REFERENCES books(id)
+                FOREIGN KEY (user_id)
+                    REFERENCES users(id) ON DELETE RESTRICT,
+
+                FOREIGN KEY (book_id)
+                    REFERENCES books(id) ON DELETE RESTRICT
             );
         `);
+
+        if (!(await hasColumn(db, 'loans', 'prazo_dias'))) {
+            await db.exec(`
+                ALTER TABLE loans
+                ADD COLUMN prazo_dias INTEGER NOT NULL DEFAULT 7
+                CHECK (prazo_dias BETWEEN 1 AND 30)
+            `);
+        }
+
+        if (!(await hasColumn(db, 'loans', 'data_prevista_devolucao'))) {
+            await db.exec(`
+                ALTER TABLE loans
+                ADD COLUMN data_prevista_devolucao DATETIME
+            `);
+        }
+
+        if (!(await hasColumn(db, 'loans', 'data_devolucao'))) {
+            await db.exec(`
+                ALTER TABLE loans
+                ADD COLUMN data_devolucao DATETIME
+            `);
+        }
+
+        const hasOldAuthorColumn = await hasColumn(
+            db,
+            'books',
+            'autor'
+        );
+
+        if (hasOldAuthorColumn) {
+            await db.exec('BEGIN IMMEDIATE');
+
+            try {
+                const oldBooks = await db.all(`
+                    SELECT id, autor
+                    FROM books
+                    WHERE autor IS NOT NULL
+                    AND TRIM(autor) != ''
+                `);
+
+                for (const book of oldBooks) {
+                    const authorNames = book.autor
+                        .split(',')
+                        .map(name => name.trim())
+                        .filter(Boolean);
+
+                    for (const authorName of authorNames) {
+                        await db.run(
+                            `INSERT INTO authors (nome)
+                             VALUES (?)
+                             ON CONFLICT(nome) DO NOTHING`,
+                            [authorName]
+                        );
+
+                        const author = await db.get(
+                            `SELECT id
+                             FROM authors
+                             WHERE nome = ? COLLATE NOCASE`,
+                            [authorName]
+                        );
+
+                        if (!author) {
+                            throw new Error(
+                                `Não foi possível migrar o autor: ${authorName}`
+                            );
+                        }
+
+                        await db.run(
+                            `INSERT OR IGNORE INTO book_authors
+                             (book_id, author_id)
+                             VALUES (?, ?)`,
+                            [book.id, author.id]
+                        );
+                    }
+                }
+
+                await db.exec('COMMIT');
+            } catch (error) {
+                await db.exec('ROLLBACK');
+                throw error;
+            }
+        }
+
+        await db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_loans_user
+            ON loans(user_id);
+
+            CREATE INDEX IF NOT EXISTS idx_loans_book
+            ON loans(book_id);
+
+            CREATE INDEX IF NOT EXISTS idx_loans_status
+            ON loans(status);
+
+            CREATE INDEX IF NOT EXISTS idx_book_authors_author
+            ON book_authors(author_id);
+        `);
+
+        const foreignKeyErrors = await db.all(
+            'PRAGMA foreign_key_check'
+        );
+
+        if (foreignKeyErrors.length > 0) {
+            throw new Error(
+                'Problemas nas chaves estrangeiras: ' +
+                JSON.stringify(foreignKeyErrors)
+            );
+        }
+
+        const loanForeignKeys = await db.all(
+            'PRAGMA foreign_key_list(loans)'
+        );
+
+        const hasUserFK = loanForeignKeys.some(
+            fk => fk.from === 'user_id' && fk.table === 'users'
+        );
+
+        const hasBookFK = loanForeignKeys.some(
+            fk => fk.from === 'book_id' && fk.table === 'books'
+        );
+
+        if (!hasUserFK || !hasBookFK) {
+            console.warn(
+                'ATENÇÃO: a tabela loans existente não possui todas as chaves estrangeiras esperadas. Será necessária uma migração da tabela.'
+            );
+        }
+
+        console.log('Banco de dados inicializado com sucesso!');
+
     } finally {
         await db.close();
     }
 }
 
-// Importar um livro da API
 async function importBook(term) {
     const db = await openDB();
 
@@ -105,36 +263,105 @@ async function importBook(term) {
             }
         }
 
-        const result = await db.run(
-            `INSERT INTO books
-            (
-                isbn,
-                titulo,
-                autor,
-                thumbnail,
-                descricao,
-                editora
+        const authors = Array.isArray(book.authors)
+            ? book.authors
+            : [];
+
+        const authorNames = [
+            ...new Set(
+                authors
+                    .map(name => String(name).trim())
+                    .filter(Boolean)
             )
-            VALUES (?, ?, ?, ?, ?, ?)`,
-            [
+        ];
+
+        await db.exec('BEGIN IMMEDIATE');
+
+        try {
+            const columns = [
+                'isbn',
+                'titulo',
+                'thumbnail',
+                'descricao',
+                'editora'
+            ];
+
+            const values = [
                 book.isbn || null,
                 book.title || 'Sem título',
-                book.authors?.join(', ') || 'Autor desconhecido',
                 book.thumbnail || null,
                 book.description || 'Sem descrição',
                 book.publisher || null
-            ]
-        );
+            ];
 
-        const importedBook = await db.get(
-            'SELECT * FROM books WHERE id = ?',
-            [result.lastID]
-        );
+            if (await hasColumn(db, 'books', 'autor')) {
+                columns.push('autor');
+                values.push(authorNames.join(', '));
+            }
 
-        return {
-            message: 'Livro importado com sucesso!',
-            book: importedBook
-        };
+            const placeholders = columns.map(() => '?').join(', ');
+
+            const result = await db.run(
+                `INSERT INTO books (${columns.join(', ')})
+                 VALUES (${placeholders})`,
+                values
+            );
+
+            // Cadastrar e relacionar os autores
+            for (const name of authorNames) {
+                await db.run(
+                    `INSERT INTO authors (nome)
+                     VALUES (?)
+                     ON CONFLICT(nome) DO NOTHING`,
+                    [name]
+                );
+
+                const author = await db.get(
+                    `SELECT id
+                     FROM authors
+                     WHERE nome = ? COLLATE NOCASE`,
+                    [name]
+                );
+
+                if (!author) {
+                    throw new Error(
+                        `Não foi possível cadastrar o autor: ${name}`
+                    );
+                }
+
+                await db.run(
+                    `INSERT OR IGNORE INTO book_authors
+                     (book_id, author_id)
+                     VALUES (?, ?)`,
+                    [result.lastID, author.id]
+                );
+            }
+
+            const importedBook = await db.get(
+                `SELECT
+                    b.*,
+                    GROUP_CONCAT(DISTINCT a.nome) AS autores
+                 FROM books b
+                 LEFT JOIN book_authors ba
+                    ON ba.book_id = b.id
+                 LEFT JOIN authors a
+                    ON a.id = ba.author_id
+                 WHERE b.id = ?
+                 GROUP BY b.id`,
+                [result.lastID]
+            );
+
+            await db.exec('COMMIT');
+
+            return {
+                message: 'Livro importado com sucesso!',
+                book: importedBook
+            };
+
+        } catch (error) {
+            await db.exec('ROLLBACK');
+            throw error;
+        }
 
     } finally {
         await db.close();
