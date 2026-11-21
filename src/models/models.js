@@ -1,17 +1,10 @@
-//const path = require('path');
-const sqlite3 = require('sqlite3');
-const { open } = require('sqlite');
+
+const { openDB } = require('../config/database');
 const bcrypt = require('bcrypt');
 
-const { dbPath } = require('../config/database');
-const { search } = require('../app');
-
-// Função para criar usuário na tabela usuários no banco
+// Criar usuário
 async function createUser(name, email, password, role = 'user') {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+    const db = await openDB();
 
     try {
         const existingUser = await db.get(
@@ -23,262 +16,65 @@ async function createUser(name, email, password, role = 'user') {
             throw new Error('Este e-mail já está cadastrado.');
         }
 
-        // Criptografia da senha
+        if (!['user', 'admin'].includes(role)) {
+            throw new Error('Nível de acesso inválido.');
+        }
+
         const passwordHash = await bcrypt.hash(password, 12);
 
-        await db.run(
+        const result = await db.run(
             `INSERT INTO users (name, email, password, role)
              VALUES (?, ?, ?, ?)`,
             [name, email, passwordHash, role]
         );
 
-    } finally {
-        await db.close();
-    }
-};
-
-// Função para criar livro na tabela livros no banco
-async function createBook(isbn = null, titulo, autor, thumbnail, descricao, editora, qtd_total = 1, qtd_disponivel = 1) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
-
-    try {
-        if (isbn) {
-            const existingBook = await db.get(
-                'SELECT * FROM books WHERE isbn = ?',
-                [isbn]
-            );
-
-            if (existingBook) {
-                return {
-                    message: 'Este livro já está cadastrado.',
-                    book: existingBook
-                };
-            }
-        }
-
-        if (
-            !Number.isInteger(qtd_total) ||
-            !Number.isInteger(qtd_disponivel) ||
-            qtd_total < 0 ||
-            qtd_disponivel < 0 ||
-            qtd_disponivel > qtd_total
-        ) {
-            throw new Error('Quantidades de livros inválidas.');
-        }
-
-        await db.run(
-            `INSERT INTO users (isbn, titulo, autor, thumbnail, descricao, editora, qtd_total, qtd_disponivel)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [isbn, titulo, autor, thumbnail, descricao, editora, qtd_total, qtd_disponivel]
-        );
-
-    } finally {
-        await db.close();
-    }
-};
-
-// Função para criar empréstimo na tabela empréstimos no banco
-async function createLoan(user_id, book_id, prazoDias = 7) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
-
-    try {
-        const user = await db.get(
-            'SELECT id FROM users WHERE id = ?',
-            [user_id]
-        );
-
-        if (!user) {
-            throw new Error('Usuário não encontrado.');
-        }
-
-        const book = await db.get(
-            'SELECT * FROM books WHERE id = ?',
-            [book_id]
-        );
-
-        if (!book) {
-            throw new Error('Livro não encontrado.');
-        }
-
-        if (book.qtd_disponivel <= 0) {
-            throw new Error('Não existem exemplares disponíveis.');
-        }
-
-        if (!Number.isInteger(prazoDias) || prazoDias <= 0) {
-            throw new Error('Prazo de empréstimo inválido.');
-        }
-
-        const existingLoan = await db.get(
-            `SELECT id FROM loans
-             WHERE user_id = ?
-             AND book_id = ?
-             AND status IN ('pendente', 'aceito')`,
-            [user_id, book_id]
-        );
-
-        if (existingLoan) {
-            throw new Error('Este usuário já possui um empréstimo ativo ou pendente deste livro.');
-        }
-
-        const result = await db.run(
-            `INSERT INTO loans
-            (user_id, book_id, status, data_prevista_devolucao)
-            VALUES (?, ?, 'pendente', datetime('now', ?))`,
-            [user_id, book_id, `+${prazoDias} days`]
-        );
-
-        const loan = await db.get(
-            'SELECT * FROM loans WHERE id = ?',
+        return await db.get(
+            'SELECT id, name, email, role FROM users WHERE id = ?',
             [result.lastID]
         );
 
-        return {
-            message: 'Solicitação de empréstimo criada com sucesso!',
-            loan
-        };
-
     } finally {
         await db.close();
     }
-};
+}
 
-// Busca por usuário no banco de dados pelo nome
+// Buscar usuário pelo nome
 async function searchUserbyName(name) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+    const db = await openDB();
+
     try {
-        const user = await db.get(
-            `SELECT * FROM users WHERE name = ?`,
-            [name]
+        return await db.all(
+            `SELECT id, name, email, role
+             FROM users
+             WHERE name LIKE ?`,
+            [`%${name}%`]
         );
-        return user;
+
     } finally {
         await db.close();
     }
-};
+}
 
-// Busca por usuário no banco de dados pelo e-mail
+// Buscar usuário pelo e-mail
 async function searchUserbyEmail(email) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+    const db = await openDB();
+
     try {
-        const user = await db.get(
-            `SELECT * FROM users WHERE email = ?`,
+        return await db.get(
+            `SELECT id, name, email, role
+             FROM users
+             WHERE email = ?`,
             [email]
         );
-        return user;
-    } finally {
-        await db.close();
-    }
-};
-
-// Busca por livro no banco de dados pelo nome
-async function searchBookbyName(nome) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
-    try {
-        const user = await db.get(
-            `SELECT * FROM books WHERE nome = ?`,
-            [nome]
-        );
-        return user;
-    } finally {
-        await db.close();
-    }
-};
-
-// Busca por livro no banco de dados pelo autor
-async function searchBookbyAuthor(autor) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
-    try {
-        const user = await db.all(
-            `SELECT * FROM books WHERE autor = ?`,
-            [autor]
-        );
-        return user;
-    } finally {
-        await db.close();
-    }
-};
-
-// Busca por livro no banco de dados pela editora
-async function searchBookbyEditor(editora) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
-    try {
-        const user = await db.all(
-            `SELECT * FROM books WHERE editora = ?`,
-            [editora]
-        );
-        return user;
-    } finally {
-        await db.close();
-    }
-};
-
-// Busca por empréstimos no banco de dados pelo ID do usuário
-async function searchLoansByUser(user_id) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
-
-    try {
-        const loans = await db.all(
-            'SELECT * FROM loans WHERE user_id = ?',
-            [user_id]
-        );
-
-        return loans;
 
     } finally {
         await db.close();
     }
-};
+}
 
-// Busca por empréstimos no banco de dados pelo ID do livro
-async function searchLoansByBook(book_id) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
-
-    try {
-        const loans = await db.all(
-            'SELECT * FROM loans WHERE book_id = ?',
-            [book_id]
-        );
-
-        return loans;
-
-    } finally {
-        await db.close();
-    }
-};
-
-// Atualizar informações nome e/ou e-mail do usuário no banco de dados
+// Atualizar nome e/ou e-mail do usuário
 async function updateUser(id, name, email) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+    const db = await openDB();
 
     try {
         const user = await db.get(
@@ -311,23 +107,22 @@ async function updateUser(id, name, email) {
             [newName, newEmail, id]
         );
 
-        console.log('Usuário atualizado!');
+        return {
+            message: 'Usuário atualizado com sucesso!'
+        };
 
     } finally {
         await db.close();
     }
-};
+}
 
-// Atualizar nível de acesso do usuário no banco de dados
+// Atualizar nível de acesso
 async function updateRole(id, newRole) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+    const db = await openDB();
 
     try {
         const user = await db.get(
-            'SELECT * FROM users WHERE id = ?',
+            'SELECT id FROM users WHERE id = ?',
             [id]
         );
 
@@ -346,17 +141,18 @@ async function updateRole(id, newRole) {
             [newRole, id]
         );
 
+        return {
+            message: 'Nível de acesso atualizado com sucesso!'
+        };
+
     } finally {
         await db.close();
     }
-};
+}
 
-// Atualizar senha do usuário no banco de dados
+// Atualizar senha
 async function updatePassword(id, currentPassword, newPassword) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+    const db = await openDB();
 
     try {
         const user = await db.get(
@@ -368,7 +164,6 @@ async function updatePassword(id, currentPassword, newPassword) {
             throw new Error('Usuário não encontrado.');
         }
 
-        // Verifica se a senha nova é a mesma da anterior
         const passwordMatch = await bcrypt.compare(
             currentPassword,
             user.password
@@ -378,8 +173,13 @@ async function updatePassword(id, currentPassword, newPassword) {
             throw new Error('Senha atual incorreta.');
         }
 
-        // Criptografia da nova senha
-        const passwordHash = await bcrypt.hash(newPassword, 10);
+        if (!newPassword || newPassword.length < 8) {
+            throw new Error(
+                'A nova senha deve ter pelo menos 8 caracteres.'
+            );
+        }
+
+        const passwordHash = await bcrypt.hash(newPassword, 12);
 
         await db.run(
             `UPDATE users
@@ -388,17 +188,207 @@ async function updatePassword(id, currentPassword, newPassword) {
             [passwordHash, id]
         );
 
+        return {
+            message: 'Senha atualizada com sucesso!'
+        };
+
     } finally {
         await db.close();
     }
-};
+}
 
-// Atualizar informações do livro no banco de dados
-async function updateBook(id, titulo, autor, editora, qtd_total, qtd_disponivel) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+// Excluir usuário
+async function deleteUser(id) {
+    const db = await openDB();
+
+    try {
+        const user = await db.get(
+            'SELECT id FROM users WHERE id = ?',
+            [id]
+        );
+
+        if (!user) {
+            throw new Error('Usuário não encontrado.');
+        }
+
+        const loans = await db.get(
+            `SELECT COUNT(*) AS total
+             FROM loans
+             WHERE user_id = ?`,
+            [id]
+        );
+
+        if (loans.total > 0) {
+            throw new Error(
+                'Não é possível excluir um usuário que possui histórico de empréstimos.'
+            );
+        }
+
+        await db.run(
+            'DELETE FROM users WHERE id = ?',
+            [id]
+        );
+
+        return {
+            message: 'Usuário excluído com sucesso!'
+        };
+
+    } finally {
+        await db.close();
+    }
+}
+
+// Selecionar todos os usuários
+async function getAllUsers() {
+    const db = await openDB();
+
+    try {
+        return await db.all(
+            `SELECT id, name, email, role
+             FROM users`
+        );
+
+    } finally {
+        await db.close();
+    }
+}
+
+// Criar livro
+async function createBook(
+    isbn,
+    titulo,
+    autor,
+    thumbnail = null,
+    descricao = null,
+    editora = null,
+    qtd_total = 1,
+    qtd_disponivel = qtd_total
+) {
+    const db = await openDB();
+
+    try {
+        if (isbn) {
+            const existingBook = await db.get(
+                'SELECT * FROM books WHERE isbn = ?',
+                [isbn]
+            );
+
+            if (existingBook) {
+                return {
+                    message: 'Este livro já está cadastrado.',
+                    book: existingBook
+                };
+            }
+        }
+
+        if (
+            !Number.isInteger(qtd_total) ||
+            !Number.isInteger(qtd_disponivel) ||
+            qtd_total < 0 ||
+            qtd_disponivel < 0 ||
+            qtd_disponivel > qtd_total
+        ) {
+            throw new Error('Quantidades de livros inválidas.');
+        }
+
+        const result = await db.run(
+            `INSERT INTO books
+            (
+                isbn,
+                titulo,
+                autor,
+                thumbnail,
+                descricao,
+                editora,
+                qtd_total,
+                qtd_disponivel
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                isbn || null,
+                titulo,
+                autor,
+                thumbnail,
+                descricao,
+                editora,
+                qtd_total,
+                qtd_disponivel
+            ]
+        );
+
+        const book = await db.get(
+            'SELECT * FROM books WHERE id = ?',
+            [result.lastID]
+        );
+
+        return {
+            message: 'Livro cadastrado com sucesso!',
+            book
+        };
+
+    } finally {
+        await db.close();
+    }
+}
+
+// Buscar livro pelo título
+async function searchBookbyName(titulo) {
+    const db = await openDB();
+
+    try {
+        return await db.all(
+            `SELECT * FROM books
+             WHERE titulo LIKE ?`,
+            [`%${titulo}%`]
+        );
+
+    } finally {
+        await db.close();
+    }
+}
+
+// Buscar livro pelo autor
+async function searchBookbyAuthor(autor) {
+    const db = await openDB();
+
+    try {
+        return await db.all(
+            `SELECT * FROM books
+             WHERE autor LIKE ?`,
+            [`%${autor}%`]
+        );
+
+    } finally {
+        await db.close();
+    }
+}
+
+// Buscar livro pela editora
+async function searchBookbyEditor(editora) {
+    const db = await openDB();
+
+    try {
+        return await db.all(
+            `SELECT * FROM books
+             WHERE editora LIKE ?`,
+            [`%${editora}%`]
+        );
+
+    } finally {
+        await db.close();
+    }
+}
+
+// Atualizar informações do livro
+async function updateBook(
+    id,
+    titulo,
+    autor,
+    editora,
+    qtd_total,
+    qtd_disponivel
+) {
+    const db = await openDB();
 
     try {
         const book = await db.get(
@@ -416,41 +406,233 @@ async function updateBook(id, titulo, autor, editora, qtd_total, qtd_disponivel)
         const newQtdTotal = qtd_total ?? book.qtd_total;
         const newQtdDisponivel = qtd_disponivel ?? book.qtd_disponivel;
 
-        if (!Number.isInteger(newQtdTotal) || newQtdTotal < 0) {
+        if (
+            !Number.isInteger(newQtdTotal) ||
+            newQtdTotal < 0
+        ) {
             throw new Error('Quantidade total inválida.');
         }
-        
-        if (!Number.isInteger(newQtdDisponivel) || newQtdDisponivel < 0) {
+
+        if (
+            !Number.isInteger(newQtdDisponivel) ||
+            newQtdDisponivel < 0
+        ) {
             throw new Error('Quantidade disponível inválida.');
         }
-        
+
         if (newQtdDisponivel > newQtdTotal) {
-            throw new Error('A quantidade disponível não pode ser maior que a total.');
+            throw new Error(
+                'A quantidade disponível não pode ser maior que a total.'
+            );
+        }
+
+        const activeLoans = await db.get(
+            `SELECT COUNT(*) AS total
+             FROM loans
+             WHERE book_id = ?
+             AND status = 'aceito'`,
+            [id]
+        );
+
+        if (newQtdTotal - newQtdDisponivel !== activeLoans.total) {
+            throw new Error(
+                'As quantidades devem considerar os empréstimos ativos.'
+            );
         }
 
         await db.run(
             `UPDATE books
-             SET titulo = ?, autor = ?, editora = ?, qtd_total = ?, qtd_disponivel = ?
+             SET titulo = ?,
+                 autor = ?,
+                 editora = ?,
+                 qtd_total = ?,
+                 qtd_disponivel = ?
              WHERE id = ?`,
-            [newTitulo, newAutor, newEditora, newQtdTotal, newQtdDisponivel, id]
+            [
+                newTitulo,
+                newAutor,
+                newEditora,
+                newQtdTotal,
+                newQtdDisponivel,
+                id
+            ]
+        );
+
+        return {
+            message: 'Livro atualizado com sucesso!'
+        };
+
+    } finally {
+        await db.close();
+    }
+}
+
+// Excluir livro
+async function deleteBook(id) {
+    const db = await openDB();
+
+    try {
+        const book = await db.get(
+            'SELECT id FROM books WHERE id = ?',
+            [id]
+        );
+
+        if (!book) {
+            throw new Error('Livro não encontrado.');
+        }
+
+        const loans = await db.get(
+            `SELECT COUNT(*) AS total
+             FROM loans
+             WHERE book_id = ?`,
+            [id]
+        );
+
+        if (loans.total > 0) {
+            throw new Error(
+                'Não é possível excluir um livro que possui histórico de empréstimos.'
+            );
+        }
+
+        await db.run(
+            'DELETE FROM books WHERE id = ?',
+            [id]
+        );
+
+        return {
+            message: 'Livro excluído com sucesso!'
+        };
+
+    } finally {
+        await db.close();
+    }
+}
+
+// Selecionar todos os livros
+async function getAllBooks() {
+    const db = await openDB();
+
+    try {
+        return await db.all(
+            'SELECT * FROM books'
         );
 
     } finally {
         await db.close();
     }
-};
+}
 
-// Função para aceitar empréstimo na tabela empréstimos no banco
-async function acceptLoan(id, prazoDias = 7) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+// Criar empréstimo
+async function createLoan(user_id, book_id, prazoDias = 7) {
+    const db = await openDB();
 
     try {
-        if (!Number.isInteger(prazoDias) || prazoDias <= 0) {
-            throw new Error('Prazo de empréstimo inválido.');
+        if (
+            !Number.isInteger(prazoDias) ||
+            prazoDias < 1 ||
+            prazoDias > 30
+        ) {
+            throw new Error(
+                'O prazo deve ser entre 1 e 30 dias.'
+            );
         }
+
+        const user = await db.get(
+            'SELECT id FROM users WHERE id = ?',
+            [user_id]
+        );
+
+        if (!user) {
+            throw new Error('Usuário não encontrado.');
+        }
+
+        const book = await db.get(
+            'SELECT * FROM books WHERE id = ?',
+            [book_id]
+        );
+
+        if (!book) {
+            throw new Error('Livro não encontrado.');
+        }
+
+        if (book.qtd_disponivel <= 0) {
+            throw new Error('Não existem exemplares disponíveis.');
+        }
+
+        const existingLoan = await db.get(
+            `SELECT id FROM loans
+             WHERE user_id = ?
+             AND book_id = ?
+             AND status IN ('pendente', 'aceito')`,
+            [user_id, book_id]
+        );
+
+        if (existingLoan) {
+            throw new Error(
+                'Este usuário já possui um empréstimo ativo ou pendente deste livro.'
+            );
+        }
+
+        const result = await db.run(
+            `INSERT INTO loans
+            (user_id, book_id, prazo_dias)
+            VALUES (?, ?, ?)`,
+            [user_id, book_id, prazoDias]
+        );
+
+        const loan = await db.get(
+            'SELECT * FROM loans WHERE id = ?',
+            [result.lastID]
+        );
+
+        return {
+            message: 'Solicitação de empréstimo criada com sucesso!',
+            loan
+        };
+
+    } finally {
+        await db.close();
+    }
+}
+
+// Buscar empréstimos pelo ID do usuário
+async function searchLoansByUser(user_id) {
+    const db = await openDB();
+
+    try {
+        return await db.all(
+            'SELECT * FROM loans WHERE user_id = ?',
+            [user_id]
+        );
+
+    } finally {
+        await db.close();
+    }
+}
+
+// Buscar empréstimos pelo ID do livro
+async function searchLoansByBook(book_id) {
+    const db = await openDB();
+
+    try {
+        return await db.all(
+            'SELECT * FROM loans WHERE book_id = ?',
+            [book_id]
+        );
+
+    } finally {
+        await db.close();
+    }
+}
+
+// Aceitar empréstimo
+async function acceptLoan(id) {
+    const db = await openDB();
+    let transaction = false;
+
+    try {
+        await db.run('BEGIN TRANSACTION');
+        transaction = true;
 
         const loan = await db.get(
             'SELECT * FROM loans WHERE id = ?',
@@ -465,8 +647,6 @@ async function acceptLoan(id, prazoDias = 7) {
             throw new Error('Este empréstimo não está pendente.');
         }
 
-        await db.run('BEGIN TRANSACTION');
-
         const book = await db.get(
             'SELECT * FROM books WHERE id = ?',
             [loan.book_id]
@@ -476,17 +656,13 @@ async function acceptLoan(id, prazoDias = 7) {
             throw new Error('Não existem exemplares disponíveis.');
         }
 
-        const resultDate = await db.get(
-            `SELECT datetime('now', ?) AS data`,
-            [`+${prazoDias} days`]
-        );
-
         await db.run(
             `UPDATE loans
              SET status = 'aceito',
-                 data_prevista_devolucao = ?
+                 data_prevista_devolucao =
+                    datetime('now', '+' || prazo_dias || ' days')
              WHERE id = ?`,
-            [resultDate.data, id]
+            [id]
         );
 
         await db.run(
@@ -497,6 +673,7 @@ async function acceptLoan(id, prazoDias = 7) {
         );
 
         await db.run('COMMIT');
+        transaction = false;
 
         const updatedLoan = await db.get(
             'SELECT * FROM loans WHERE id = ?',
@@ -509,20 +686,20 @@ async function acceptLoan(id, prazoDias = 7) {
         };
 
     } catch (error) {
-        await db.run('ROLLBACK');
+        if (transaction) {
+            await db.run('ROLLBACK');
+        }
+
         throw error;
 
     } finally {
         await db.close();
     }
-};
+}
 
-// Função para recusar empréstimo na tabela empréstimos no banco
+// Recusar empréstimo
 async function rejectLoan(id) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+    const db = await openDB();
 
     try {
         const loan = await db.get(
@@ -558,17 +735,16 @@ async function rejectLoan(id) {
     } finally {
         await db.close();
     }
-};
+}
 
-// Função para devolver livro na tabela empréstimos no banco
+// Devolver livro
 async function returnLoan(id) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+    const db = await openDB();
+    let transaction = false;
 
     try {
         await db.run('BEGIN TRANSACTION');
+        transaction = true;
 
         const loan = await db.get(
             'SELECT * FROM loans WHERE id = ?',
@@ -580,7 +756,9 @@ async function returnLoan(id) {
         }
 
         if (loan.status !== 'aceito') {
-            throw new Error('Este empréstimo não está ativo ou já foi devolvido.');
+            throw new Error(
+                'Este empréstimo não está ativo ou já foi devolvido.'
+            );
         }
 
         const book = await db.get(
@@ -608,6 +786,7 @@ async function returnLoan(id) {
         );
 
         await db.run('COMMIT');
+        transaction = false;
 
         const updatedLoan = await db.get(
             'SELECT * FROM loans WHERE id = ?',
@@ -620,20 +799,21 @@ async function returnLoan(id) {
         };
 
     } catch (error) {
-        await db.run('ROLLBACK');
+        if (transaction) {
+            await db.run('ROLLBACK');
+        }
+
         throw error;
 
     } finally {
         await db.close();
     }
-};
+}
 
-// Função para estender o prazo do empréstimo no banco de dados
+// Renovar empréstimo
 async function updateLoan(id, diasAdicionais) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+    const db = await openDB();
+    let transaction = false;
 
     try {
         if (
@@ -647,6 +827,7 @@ async function updateLoan(id, diasAdicionais) {
         }
 
         await db.run('BEGIN TRANSACTION');
+        transaction = true;
 
         const loan = await db.get(
             'SELECT * FROM loans WHERE id = ?',
@@ -669,16 +850,29 @@ async function updateLoan(id, diasAdicionais) {
             );
         }
 
+        const novoPrazo = loan.prazo_dias + diasAdicionais;
+
+        if (novoPrazo > 30) {
+            throw new Error(
+                'O prazo total do empréstimo não pode ultrapassar 30 dias.'
+            );
+        }
+
         await db.run(
             `UPDATE loans
              SET data_prevista_devolucao =
-                 datetime(data_prevista_devolucao, ?),
-                 prazo_dias = prazo_dias + ?
+                    datetime(data_prevista_devolucao, ?),
+                 prazo_dias = ?
              WHERE id = ?`,
-            [`+${diasAdicionais} days`, diasAdicionais, id]
+            [
+                `+${diasAdicionais} days`,
+                novoPrazo,
+                id
+            ]
         );
 
         await db.run('COMMIT');
+        transaction = false;
 
         const updatedLoan = await db.get(
             'SELECT * FROM loans WHERE id = ?',
@@ -691,177 +885,116 @@ async function updateLoan(id, diasAdicionais) {
         };
 
     } catch (error) {
-        await db.run('ROLLBACK');
+        if (transaction) {
+            await db.run('ROLLBACK');
+        }
+
         throw error;
 
     } finally {
         await db.close();
     }
-};
+}
 
-// Deletar usuário do banco de dados
-async function deleteUser(id) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
-
-    try {
-        const user = await db.get(
-            'SELECT * FROM users WHERE id = ?',
-            [id]
-        );
-
-        if (!user) {
-            throw new Error('Usuário não encontrado.');
-        }
-
-        await db.run(
-            `DELETE FROM users
-             WHERE id = ?`,
-            [id]
-        );
-
-    } finally {
-        await db.close();
-    }
-};
-
-// Deletar livro do banco de dados
-async function deleteBook(id) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
-
-    try {
-        const book = await db.get(
-            'SELECT * FROM books WHERE id = ?',
-            [id]
-        );
-
-        if (!book) {
-            throw new Error('Livro não encontrado.');
-        }
-
-        await db.run(
-            `DELETE FROM books
-             WHERE id = ?`,
-            [id]
-        );
-
-    } finally {
-        await db.close();
-    }
-};
-
-// Deletar empréstimo do banco de dados
+// Excluir empréstimo
 async function deleteLoan(id) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+    const db = await openDB();
+    let transaction = false;
 
     try {
+        await db.run('BEGIN TRANSACTION');
+        transaction = true;
+
         const loan = await db.get(
             'SELECT * FROM loans WHERE id = ?',
             [id]
         );
 
-        if (!book) {
+        if (!loan) {
             throw new Error('Empréstimo não encontrado.');
         }
 
+        if (loan.status === 'aceito') {
+            await db.run(
+                `UPDATE books
+                 SET qtd_disponivel = qtd_disponivel + 1
+                 WHERE id = ?`,
+                [loan.book_id]
+            );
+        }
+
         await db.run(
-            `DELETE FROM loans
-             WHERE id = ?`,
+            'DELETE FROM loans WHERE id = ?',
             [id]
         );
 
-    } finally {
-        await db.close();
-    }
-};
+        await db.run('COMMIT');
+        transaction = false;
 
-// Selecionar todos os usuários do banco de dados
-async function getAllUsers() {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+        return {
+            message: 'Empréstimo excluído com sucesso!'
+        };
 
-    try {
-        const users = await db.all(
-            `SELECT id, name, email, role
-             FROM users`
-        );
+    } catch (error) {
+        if (transaction) {
+            await db.run('ROLLBACK');
+        }
 
-        return users;
+        throw error;
 
     } finally {
         await db.close();
     }
-};
+}
 
-// Selecionar todos os livros do banco de dados
-async function getAllBooks() {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
-
-    try {
-        const books = await db.all(
-            `SELECT id, name, email, role
-             FROM books`
-        );
-
-        return books;
-
-    } finally {
-        await db.close();
-    }
-};
-
-// Selecionar todos os empréstimos do banco de dados
+// Selecionar todos os empréstimos
 async function getAllLoans() {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+    const db = await openDB();
 
     try {
-        const loans = await db.all(
-            `SELECT id, user_id, book_id, status, data_solicitacao, data_devolucao
+        return await db.all(
+            `SELECT
+                id,
+                user_id,
+                book_id,
+                status,
+                prazo_dias,
+                data_solicitacao,
+                data_prevista_devolucao,
+                data_devolucao
              FROM loans`
         );
 
-        return loans;
-
     } finally {
         await db.close();
     }
-};
+}
 
 module.exports = {
     createUser,
     searchUserbyName,
     searchUserbyEmail,
+    updateUser,
+    updateRole,
+    updatePassword,
+    deleteUser,
+    getAllUsers,
+
     createBook,
     searchBookbyName,
     searchBookbyAuthor,
     searchBookbyEditor,
+    updateBook,
+    deleteBook,
+    getAllBooks,
+
+    createLoan,
     searchLoansByUser,
     searchLoansByBook,
-    updateUser,
-    updateRole,
-    updatePassword,
-    updateBook,
+    acceptLoan,
+    rejectLoan,
+    returnLoan,
     updateLoan,
-    deleteUser,
-    deleteBook,
     deleteLoan,
-    getAllUsers,
-    getAllBooks,
     getAllLoans
 };

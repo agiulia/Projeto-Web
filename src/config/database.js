@@ -1,15 +1,28 @@
+
 const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
-
 const path = require('path');
+
+// Importe searchBooks do arquivo onde está implementada a API.
+const { searchBooks } = require('../services/googleBooks');
+
 const dbPath = path.join(__dirname, 'banco.db');
 
-// Iniciar banco de dados
-async function initializeDB() {
+// Abrir conexão com o banco
+async function openDB() {
     const db = await open({
         filename: dbPath,
         driver: sqlite3.Database,
     });
+
+    await db.exec('PRAGMA foreign_keys = ON');
+
+    return db;
+}
+
+// Inicializar banco de dados
+async function initializeDB() {
+    const db = await openDB();
 
     try {
         await db.exec(`
@@ -17,8 +30,7 @@ async function initializeDB() {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name VARCHAR(50) NOT NULL,
                 email VARCHAR(50) NOT NULL UNIQUE,
-                password VARCHAR(50) NOT NULL,
-                
+                password VARCHAR(255) NOT NULL,
                 role VARCHAR(50) NOT NULL DEFAULT 'user'
                     CHECK (role IN ('user', 'admin'))
             );
@@ -31,20 +43,28 @@ async function initializeDB() {
                 thumbnail TEXT,
                 descricao TEXT,
                 editora VARCHAR(100),
-                qtd_total INT DEFAULT 1,
-                qtd_disponivel INT DEFAULT 1
+                qtd_total INTEGER NOT NULL DEFAULT 1,
+                qtd_disponivel INTEGER NOT NULL DEFAULT 1
             );
 
             CREATE TABLE IF NOT EXISTS loans (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INT NOT NULL,
-                book_id INT NOT NULL,
+                user_id INTEGER NOT NULL,
+                book_id INTEGER NOT NULL,
 
                 status VARCHAR(20) NOT NULL DEFAULT 'pendente'
-                    CHECK (status IN ('pendente', 'aceito', 'recusado', 'devolvido')),
+                    CHECK (
+                        status IN (
+                            'pendente',
+                            'aceito',
+                            'recusado',
+                            'devolvido'
+                        )
+                    ),
 
                 prazo_dias INTEGER NOT NULL DEFAULT 7
                     CHECK (prazo_dias BETWEEN 1 AND 30),
+
                 data_solicitacao DATETIME DEFAULT CURRENT_TIMESTAMP,
                 data_prevista_devolucao DATETIME,
                 data_devolucao DATETIME,
@@ -56,20 +76,16 @@ async function initializeDB() {
     } finally {
         await db.close();
     }
-};
+}
 
-// Função para importar livros da API do Google Books (importa um por vez)
-
+// Importar um livro da API
 async function importBook(term) {
-    const db = await open({
-        filename: dbPath,
-        driver: sqlite3.Database,
-    });
+    const db = await openDB();
 
     try {
         const books = await searchBooks(term);
 
-        if (books.length === 0) {
+        if (!books || books.length === 0) {
             throw new Error('Nenhum livro encontrado na API.');
         }
 
@@ -91,7 +107,14 @@ async function importBook(term) {
 
         const result = await db.run(
             `INSERT INTO books
-            (isbn, titulo, autor, thumbnail, descricao, editora)
+            (
+                isbn,
+                titulo,
+                autor,
+                thumbnail,
+                descricao,
+                editora
+            )
             VALUES (?, ?, ?, ?, ?, ?)`,
             [
                 book.isbn || null,
@@ -116,10 +139,11 @@ async function importBook(term) {
     } finally {
         await db.close();
     }
-};
+}
 
 module.exports = {
     dbPath,
+    openDB,
     initializeDB,
     importBook
 };
