@@ -10,45 +10,45 @@
         rel="stylesheet">
 </head>
 
-<body>
-    <main class="d-flex justify-content-center align-items-center min-vh-100">
-        <div class="card col-6" style="background-color: #ffffff;">
-            <h5 class="card-header" style="background-color: #f8f9fa; color: #000000;">Cadastro
-            </h5>
-            <div class="card-body" style="background-color: #ffffff;">
-                <form action="../index.html" id="formulario">
-                    <div class="mb-3">
-                        <label for="nomeInput" class="form-label">
-                            Nome
-                        </label>
-                        <input type="text" class="form-control" id="nomeInput">
+<body class="bg-body-tertiary min-vh-100 d-flex align-items-center">
+    <main class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-12 col-sm-10 col-md-7 col-lg-5">
+                <div class="text-center mb-4"><a href="/" class="text-decoration-none"><span class="fs-1">📚</span>
+                        <h1 class="h3 text-dark mt-2">Biblioteca Virtual</h1>
+                    </a>
+                    <p class="text-secondary">Crie sua conta gratuitamente</p>
+                </div>
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-4 p-md-5">
+                        <h2 class="h4 mb-4">Criar conta</h2>
+                        <form id="formCadastro" action="/usuarios/cadastro" method="post" novalidate>
+                            <div class="mb-3"><label for="nome" class="form-label">Nome completo</label><input
+                                    class="form-control" id="nome" name="name" required minlength="3" maxlength="100">
+                                <div class="invalid-feedback">Informe seu nome (mínimo de 3 caracteres).</div>
+                            </div>
+                            <div class="mb-3"><label for="email" class="form-label">E-mail</label><input
+                                    class="form-control" type="email" id="email" name="email" required>
+                                <div class="invalid-feedback">Informe um e-mail válido.</div>
+                            </div>
+                            <div class="mb-3"><label for="senha" class="form-label">Senha</label><input
+                                    class="form-control" type="password" id="senha" name="password" required
+                                    minlength="6">
+                                <div class="form-text">A senha deve ter pelo menos 6 caracteres.</div>
+                                <div class="invalid-feedback">Informe uma senha com pelo menos 6 caracteres.</div>
+                            </div>
+                            <div class="mb-4"><label for="confirmarSenha" class="form-label">Confirmar
+                                    senha</label><input class="form-control" type="password" id="confirmarSenha"
+                                    required>
+                                <div class="invalid-feedback">As senhas precisam ser iguais.</div>
+                            </div><button class="btn btn-primary btn-lg w-100" type="submit">Cadastrar</button>
+                        </form>
+                        <p class="text-center text-secondary mt-4 mb-0">Já possui uma conta? <a href="/login">Fazer
+                                login</a></p>
                     </div>
-                    <div class="mb-3">
-                        <label for="emailInput" class="form-label">
-                            Email
-                        </label>
-                        <input type="email" class="form-control" id="emailInput">
-                    </div>
-                    <div class="mb-3">
-                        <label for="senhaInput" class="form-label">
-                            Senha
-                        </label>
-                        <input type="password" class="form-control" id="senhaInput">
-                    </div>
-                    <div class="mb-3">
-                        <label for="confirmarSenhaInput" class="form-label">
-                            Confirmar Senha
-                        </label>
-                        <input type="password" class="form-control" id="confirmarSenhaInput">
-                        <div class="form-text">
-                            Não compartilhamos suas informações com ninguém.
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary" style="background-color: #0d6efd; border: none;"
-                        onclick="cadastrar()">
-                        Cadastrar
-                    </button>
-                </form>
+                </div>
+                <p class="text-center mt-3"><a class="link-secondary small" href="/">Voltar para a página inicial</a>
+                </p>
             </div>
         </div>
     </main>
