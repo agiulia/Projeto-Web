@@ -136,6 +136,16 @@ async function createUser(name, email, password, role = 'user') {
     });
 }
 
+// Buscar usuário pelo ID
+async function searchUserbyId(id) {
+    return withDB(db => db.get(
+        `SELECT id, name, email, role
+         FROM users
+         WHERE id = ?`,
+        [id]
+    ));
+}
+
 // Buscar usuário pelo nome
 async function searchUserbyName(name) {
     return withDB(db => db.all(
@@ -524,6 +534,11 @@ async function updateBook(
             book: await getBookById(db, id)
         };
     }));
+}
+
+// Buscar livrp pelo id
+async function searchBookbyId(id) {
+    return withDB(db => getBookById(db, id));
 }
 
 // Excluir livro
@@ -930,6 +945,7 @@ module.exports = {
     createUser,
     searchUserbyName,
     searchUserbyEmail,
+    searchUserbyId,
     updateUser,
     updateRole,
     updatePassword,
@@ -941,6 +957,7 @@ module.exports = {
     searchBookbyName,
     searchBookbyAuthor,
     searchBookbyEditor,
+    searchBookbyId,
     updateBook,
     deleteBook,
     getAllBooks,

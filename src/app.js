@@ -15,15 +15,17 @@ app.use((req, res, next) => {
   next();
 });
 
-const initialRoute = require('./routes/initialRoute');
-const userRoutes = require('./routes/userRoutes');
 app.set('views', path.join(__dirname, 'pages'));
 app.set('view engine', 'ejs');
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+const initialRoute = require('./routes/initialRoute');
 app.use('/', initialRoute);
+
+const userRoutes = require('./routes/userRoutes');
 app.use('/usuarios', userRoutes);
 
+const bookRoutes = require('./routes/bookRoutes');
+app.use('/livros', bookRoutes);
 module.exports = app;

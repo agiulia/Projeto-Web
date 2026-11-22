@@ -1,6 +1,7 @@
 const BASE_URL = 'https://www.googleapis.com/books/v1/volumes';
 
 function buildUrl(term) {
+    // ele muda alguns caracteres para o formato de busca por exemplo " " -> %20
     const query = encodeURIComponent(term);
     const apiKey = process.env.GOOGLE_BOOKS_API_KEY;
     return `${BASE_URL}?q=${query}&key=${apiKey}`;
