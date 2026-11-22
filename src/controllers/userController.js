@@ -30,7 +30,7 @@ async function register(req, res) {
         await createUser(name, email, password);
         res.redirect('/usuarios/login');
     } catch (err) {
-        if (err.code === 'SQLITE_CONSTRAINT') {
+        if (err.code === 'SQLITE_CONSTRAINT' || err.message.includes('já está cadastrado')) {
             return res.status(400).render('usuarios/cadastro', {
                 error: 'Este e-mail já está cadastrado.',
             });
