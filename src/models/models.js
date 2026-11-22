@@ -266,6 +266,16 @@ async function updatePassword(id, currentPassword, newPassword) {
     });
 }
 
+// Retornar informações do usuário
+async function searchUserForLogin(email) {
+    return withDB(db => db.get(
+        `SELECT id, name, email, role, password
+         FROM users
+         WHERE email = ? COLLATE NOCASE`,
+        [email.trim()]
+    ));
+}
+
 // Excluir usuário
 async function deleteUser(id) {
     return withDB(async db => {
@@ -925,6 +935,7 @@ module.exports = {
     updatePassword,
     deleteUser,
     getAllUsers,
+    searchUserForLogin,
 
     createBook,
     searchBookbyName,

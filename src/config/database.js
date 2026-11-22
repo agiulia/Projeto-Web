@@ -3,7 +3,7 @@ const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 const path = require('path');
 
-const { searchBooks } = require('../services/googleBooks');
+const { searchBooks } = require('../services/googleBooksService');
 
 const dbPath = path.join(__dirname, 'banco.db');
 

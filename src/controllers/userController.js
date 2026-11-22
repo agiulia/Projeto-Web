@@ -1,4 +1,5 @@
-const { createUser } = require('../models/models');
+const bcrypt = require('bcrypt'); // se o models usa bcryptjs, troque aqui
+const { createUser, searchUserForLogin } = require('../models/models');
 
 // Mostra o formulário de cadastro
 function showRegisterForm(req, res) {
@@ -17,7 +18,7 @@ async function register(req, res) {
 
     try {
         await createUser(name, email, password);
-        res.redirect('/login');
+        res.redirect('/usuarios/login');
     } catch (err) {
         if (err.code === 'SQLITE_CONSTRAINT') {
             return res.status(400).render('usuarios/cadastro', {
@@ -32,4 +33,53 @@ async function register(req, res) {
     }
 }
 
-module.exports = { showRegisterForm, register };
+// Mostra o formulário de login
+function showLoginForm(req, res) {
+    res.render('usuarios/login', { error: null });
+}
+
+// Confere e-mail e senha e guarda o usuário na sessão
+async function login(req, res) {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).render('usuarios/login', {
+            error: 'Preencha todos os campos.',
+        });
+    }
+
+    try {
+        const user = await searchUserForLogin(email);
+        const passwordOk = user && await bcrypt.compare(password, user.password);
+
+        if (!passwordOk) {
+            return res.status(401).render('usuarios/login', {
+                error: 'E-mail ou senha incorretos.',
+            });
+        }
+
+        // guarda na sessão (sem a senha)
+        req.session.usuario = {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+        };
+
+        res.redirect(user.role === 'admin' ? '/admin' : '/');
+    } catch (err) {
+        console.error(err);
+        res.status(500).render('usuarios/login', {
+            error: 'Erro ao fazer login. Tente novamente.',
+        });
+    }
+}
+
+// Encerra a sessão
+function logout(req, res) {
+    req.session.destroy(() => {
+        res.redirect('/usuarios/login');
+    });
+}
+
+module.exports = { showRegisterForm, register, showLoginForm, login, logout };
