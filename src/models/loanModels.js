@@ -348,6 +348,96 @@ async function getAllLoans() {
     ));
 }
 
+// Selecionar informações relacionadas à empréstimos
+
+// Consulta cruzada: empréstimos + usuário + livro + autores
+// filters aceita: id, user_id, book_id, status
+
+async function getLoansDetailed(filters = {}) {
+    return withDB(db => {
+        const where = [];
+        const params = [];
+
+        if (filters.id !== undefined &&
+            filters.id !== null &&
+            filters.id !== '') {
+
+            where.push('l.id = ?');
+            params.push(filters.id);
+        }
+
+        if (filters.user_id !== undefined &&
+            filters.user_id !== null &&
+            filters.user_id !== '') {
+
+            where.push('l.user_id = ?');
+            params.push(filters.user_id);
+        }
+
+        if (filters.book_id !== undefined &&
+            filters.book_id !== null &&
+            filters.book_id !== '') {
+
+            where.push('l.book_id = ?');
+            params.push(filters.book_id);
+        }
+
+        if (filters.status !== undefined &&
+            filters.status !== null &&
+            filters.status !== '') {
+
+            where.push('l.status = ?');
+            params.push(filters.status);
+        }
+
+        const whereSQL = where.length
+            ? `WHERE ${where.join(' AND ')}`
+            : '';
+
+        return db.all(
+            `SELECT
+                l.id,
+                l.status,
+                l.prazo_dias,
+                l.data_solicitacao,
+                l.data_prevista_devolucao,
+                l.data_devolucao,
+
+                u.id AS user_id,
+                u.name AS user_name,
+                u.email AS user_email,
+
+                b.id AS book_id,
+                b.titulo AS book_title,
+                b.isbn,
+
+                GROUP_CONCAT(DISTINCT a.nome) AS autores
+
+             FROM loans l
+
+             INNER JOIN users u
+                ON u.id = l.user_id
+
+             INNER JOIN books b
+                ON b.id = l.book_id
+
+             LEFT JOIN book_authors ba
+                ON ba.book_id = b.id
+
+             LEFT JOIN authors a
+                ON a.id = ba.author_id
+
+             ${whereSQL}
+
+             GROUP BY l.id
+
+             ORDER BY l.data_solicitacao DESC`,
+
+            params
+        );
+    });
+}
+
 module.exports = {
     createLoan,
     searchLoansByUser,
@@ -357,5 +447,6 @@ module.exports = {
     returnLoan,
     updateLoan,
     deleteLoan,
-    getAllLoans
+    getAllLoans,
+    getLoansDetailed
 };
