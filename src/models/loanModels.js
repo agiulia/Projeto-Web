@@ -349,10 +349,6 @@ async function getAllLoans() {
 }
 
 // Selecionar informações relacionadas à empréstimos
-
-// Consulta cruzada: empréstimos + usuário + livro + autores
-// filters aceita: id, user_id, book_id, status
-
 async function getLoansDetailed(filters = {}) {
     return withDB(db => {
         const where = [];
