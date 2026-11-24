@@ -48,39 +48,42 @@ function normalizeAuthors(authors) {
 }
 
 // Associar autores a um livro
-async function setBookAuthors(db, bookId, authors) {
-    const authorNames = normalizeAuthors(authors);
 
-    await db.run(
-        'DELETE FROM book_authors WHERE book_id = ?',
-        [bookId]
-    );
+async function setBookAuthors(db, bookId, authors = []) {
+    for (const author of authors) {
+        // Ignorar valores vazios
+        if (!author || !author.trim()) {
+            continue;
+        }
 
-    for (const name of authorNames) {
-        await db.run(
-            `INSERT INTO authors (nome)
-             VALUES (?)
-             ON CONFLICT(nome) DO NOTHING`,
-            [name]
-        );
+        const authorName = author.trim();
 
-        const author = await db.get(
-            `SELECT id FROM authors
+        // Verificar se o autor já existe
+        let existingAuthor = await db.get(
+            `SELECT id
+             FROM authors
              WHERE nome = ? COLLATE NOCASE`,
-            [name]
+            [authorName]
         );
 
-        if (!author) {
-            throw new Error(
-                `Não foi possível cadastrar o autor: ${name}`
+        // Criar o autor caso não exista
+        if (!existingAuthor) {
+            const result = await db.run(
+                `INSERT INTO authors (nome)
+                 VALUES (?)`,
+                [authorName]
             );
+
+            existingAuthor = {
+                id: result.lastID
+            };
         }
 
         await db.run(
             `INSERT OR IGNORE INTO book_authors
              (book_id, author_id)
              VALUES (?, ?)`,
-            [bookId, author.id]
+            [bookId, existingAuthor.id]
         );
     }
 }

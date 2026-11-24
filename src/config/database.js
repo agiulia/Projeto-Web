@@ -25,9 +25,9 @@ async function hasColumn(db, tableName, columnName) {
     return columns.some(column => column.name === columnName);
 }
 
+
 async function initializeDB() {
     const db = await openDB();
-
     try {
         await db.exec(`
             CREATE TABLE IF NOT EXISTS users (
@@ -105,88 +105,7 @@ async function initializeDB() {
             );
         `);
 
-        if (!(await hasColumn(db, 'loans', 'prazo_dias'))) {
-            await db.exec(`
-                ALTER TABLE loans
-                ADD COLUMN prazo_dias INTEGER NOT NULL DEFAULT 7
-                CHECK (prazo_dias BETWEEN 1 AND 30)
-            `);
-        }
-
-        if (!(await hasColumn(db, 'loans', 'data_prevista_devolucao'))) {
-            await db.exec(`
-                ALTER TABLE loans
-                ADD COLUMN data_prevista_devolucao DATETIME
-            `);
-        }
-
-        if (!(await hasColumn(db, 'loans', 'data_devolucao'))) {
-            await db.exec(`
-                ALTER TABLE loans
-                ADD COLUMN data_devolucao DATETIME
-            `);
-        }
-
-        const hasOldAuthorColumn = await hasColumn(
-            db,
-            'books',
-            'autor'
-        );
-
-        if (hasOldAuthorColumn) {
-            await db.exec('BEGIN IMMEDIATE');
-
-            try {
-                const oldBooks = await db.all(`
-                    SELECT id, autor
-                    FROM books
-                    WHERE autor IS NOT NULL
-                    AND TRIM(autor) != ''
-                `);
-
-                for (const book of oldBooks) {
-                    const authorNames = book.autor
-                        .split(',')
-                        .map(name => name.trim())
-                        .filter(Boolean);
-
-                    for (const authorName of authorNames) {
-                        await db.run(
-                            `INSERT INTO authors (nome)
-                             VALUES (?)
-                             ON CONFLICT(nome) DO NOTHING`,
-                            [authorName]
-                        );
-
-                        const author = await db.get(
-                            `SELECT id
-                             FROM authors
-                             WHERE nome = ? COLLATE NOCASE`,
-                            [authorName]
-                        );
-
-                        if (!author) {
-                            throw new Error(
-                                `Não foi possível migrar o autor: ${authorName}`
-                            );
-                        }
-
-                        await db.run(
-                            `INSERT OR IGNORE INTO book_authors
-                             (book_id, author_id)
-                             VALUES (?, ?)`,
-                            [book.id, author.id]
-                        );
-                    }
-                }
-
-                await db.exec('COMMIT');
-            } catch (error) {
-                await db.exec('ROLLBACK');
-                throw error;
-            }
-        }
-
+        // Criar índices
         await db.exec(`
             CREATE INDEX IF NOT EXISTS idx_loans_user
             ON loans(user_id);
@@ -201,6 +120,7 @@ async function initializeDB() {
             ON book_authors(author_id);
         `);
 
+        // Integridade das chaves estrangeiras
         const foreignKeyErrors = await db.all(
             'PRAGMA foreign_key_check'
         );
@@ -212,25 +132,11 @@ async function initializeDB() {
             );
         }
 
-        const loanForeignKeys = await db.all(
-            'PRAGMA foreign_key_list(loans)'
-        );
-
-        const hasUserFK = loanForeignKeys.some(
-            fk => fk.from === 'user_id' && fk.table === 'users'
-        );
-
-        const hasBookFK = loanForeignKeys.some(
-            fk => fk.from === 'book_id' && fk.table === 'books'
-        );
-
-        if (!hasUserFK || !hasBookFK) {
-            console.warn(
-                'ATENÇÃO: a tabela loans existente não possui todas as chaves estrangeiras esperadas. Será necessária uma migração da tabela.'
-            );
-        }
-
         console.log('Banco de dados inicializado com sucesso!');
+
+    } catch (error) {
+        console.error('Erro ao inicializar o banco:', error);
+        throw error;
 
     } finally {
         await db.close();
