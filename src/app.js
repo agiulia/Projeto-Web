@@ -28,4 +28,8 @@ app.use('/usuarios', userRoutes);
 
 const bookRoutes = require('./routes/bookRoutes');
 app.use('/livros', bookRoutes);
+
+const adminRoutes = require('./routes/adminRoutes');
+app.use('/admin', adminRoutes);
+
 module.exports = app;

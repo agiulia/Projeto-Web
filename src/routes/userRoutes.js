@@ -10,6 +10,11 @@ router.get('/login', userController.showLoginForm);
 router.post('/login', userController.login);
 router.get('/logout', userController.logout);
 
+// ele msm
+// ele msm
+router.get('/perfil', requireAuth, userController.showProfile);
+router.post('/perfil', requireAuth, userController.updateProfile);
+
 // so ADM
 router.get('/', requireAdmin, userController.listUsers);
 router.post('/', requireAdmin, userController.addUser);
@@ -20,5 +25,6 @@ router.delete('/:id', requireAdmin, userController.removeUser);
 router.get('/:id', requireAuth, userController.showUser);
 router.put('/:id', requireAuth, userController.editUser);
 router.put('/:id/senha', requireAuth, userController.changePassword);
+
 
 module.exports = router;

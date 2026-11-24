@@ -18,13 +18,19 @@
                     <a class="nav-link text-white" href="/">Home</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link text-white" href="./usuarios/login">Login</a>
+                    <a class="nav-link text-white" href="/usuarios/login">Login</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link text-white" href="./usuarios/cadastro">Cadastro</a>
+                    <a class="nav-link text-white" href="/usuarios/cadastro">Cadastro</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link text-white" href="/interface">Interface</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="/usuarios/perfil">Perfil</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="/admin/perfilAdmin">ADM</a>
                 </li>
             </ul>
         </nav>
@@ -32,10 +38,20 @@
 
     <main class="container my-5 flex-grow-1">
 
-        <form action="/buscar" method="get" class="d-flex gap-2 mb-4">
-            <input type="text" name="busca" value="<%= busca %>"
-                class="form-control" placeholder="Digite o título ou autor">
-            <button type="submit" class="btn btn-primary">Buscar</button>
+        <form action="/buscar" method="get" class="bg-white p-4 rounded shadow mb-4">
+
+            <label for="busca" class="form-label">Campo de busca</label>
+            <input type="text" id="busca" name="busca" value="<%= busca %>"
+                class="form-control mb-3" placeholder="Digite o título ou autor" required>
+
+            <label for="pesquisarPor" class="form-label">Pesquisar por</label>
+            <select id="pesquisarPor" name="pesquisarPor" class="form-select mb-3">
+                <option value="">Selecione uma opção</option>
+                <option value="titulo">Título</option>
+                <option value="autor">Autor</option>
+            </select>
+
+            <button type="submit" class="btn btn-primary">Pesquisar</button>
         </form>
 
         <% if (erro) { %>
@@ -83,6 +99,13 @@
                 </div>
             </div>
         <% }) %>
+
+        <div class="bg-white p-4 rounded shadow mt-5">
+            <h2 class="text-primary">Informações gerais</h2>
+            <div class="bg-light p-3 rounded">
+                <p>exemplo de informações gerais</p>
+            </div>
+        </div>
 
     </main>
 

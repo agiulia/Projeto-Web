@@ -8,7 +8,7 @@ const {
     searchBookbyName,
     searchBookbyAuthor,
     searchBookbyEditor,
-} = require('../models/models');
+} = require('../models/bookModels');
 
 async function buscar(req, res) {
     const busca = req.query.busca;

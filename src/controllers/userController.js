@@ -8,8 +8,41 @@ const {
     updateRole,
     updatePassword,
     deleteUser,
-} = require('../models/models');
+} = require('../models/userModels');
+const { searchLoansByUser } = require('../models/loanModels');
 const bcrypt = require('bcrypt');
+
+const STATUS_LABEL = {
+    pendente: 'Pendente',
+    aceito: 'Aprovado',
+    recusado: 'Recusado',
+    devolvido: 'Devolvido',
+};
+
+function formatDate(value) {
+    if (!value) return '-';
+    return new Date(value.replace(' ', 'T') + 'Z').toLocaleDateString('pt-BR');
+}
+
+// Busca os empréstimos e monta a página do perfil
+async function renderProfile(req, res, erro = null, status = 200) {
+    const logged = req.session.usuario;
+    const loans = await searchLoansByUser(logged.id);
+
+    const emprestimos = loans.map((loan) => ({
+        titulo: loan.book_title,
+        data: formatDate(loan.data_solicitacao),
+        status: STATUS_LABEL[loan.status] || loan.status,
+    }));
+
+    const usuario = {
+        ...logged,
+        tipo: logged.role === 'admin' ? 'Administrador' : 'Usuário',
+    };
+
+    res.status(status).render('usuarios/perfil', { usuario, emprestimos, erro });
+}
+
 
 // Mostra o formulário de cadastro
 function showRegisterForm(req, res) {
@@ -258,6 +291,34 @@ async function removeUser(req, res) {
     }
 }
 
+// GET /usuarios/perfil
+async function showProfile(req, res) {
+    try {
+        await renderProfile(req, res);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Erro ao carregar o perfil.');
+    }
+}
+
+// POST /usuarios/perfil
+async function updateProfile(req, res) {
+    const { name, email } = req.body;
+    const id = req.session.usuario.id;
+
+    try {
+        await updateUser(id, name, email);
+
+        // atualiza a sessão com os novos dados
+        req.session.usuario = { ...req.session.usuario, name, email };
+
+        res.redirect('/usuarios/perfil');
+    } catch (err) {
+        console.error(err);
+        await renderProfile(req, res, err.message, 400);
+    }
+}
+
 module.exports = {
     showRegisterForm,
     register,
@@ -271,4 +332,6 @@ module.exports = {
     changeRole,
     changePassword,
     removeUser,
-};
+    showProfile,
+    updateProfile
+}
