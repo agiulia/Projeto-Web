@@ -18,14 +18,6 @@ async function openDB() {
     return db;
 }
 
-// Verificar se uma coluna existe
-async function hasColumn(db, tableName, columnName) {
-    const columns = await db.all(`PRAGMA table_info(${tableName})`);
-
-    return columns.some(column => column.name === columnName);
-}
-
-
 async function initializeDB() {
     const db = await openDB();
     try {
