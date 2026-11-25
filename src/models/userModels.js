@@ -1,11 +1,28 @@
+
 const bcrypt = require('bcrypt');
 const { withDB } = require('./auxiliarModels');
 
+// Executar operações em transação
+async function transaction(db, callback) {
+    await db.exec('BEGIN IMMEDIATE');
+
+    try {
+        const result = await callback();
+        await db.exec('COMMIT');
+        return result;
+    } catch (error) {
+        await db.exec('ROLLBACK');
+        throw error;
+    }
+}
+
 // Criar usuário
 async function createUser(name, email, password, role = 'user') {
-    return withDB(async db => {
+    return withDB(db => transaction(db, async () => {
         if (!name || !email || !password) {
-            throw new Error('Nome, e-mail e senha são obrigatórios.');
+            throw new Error(
+                'Nome, e-mail e senha são obrigatórios.'
+            );
         }
 
         if (!['user', 'admin'].includes(role)) {
@@ -23,25 +40,187 @@ async function createUser(name, email, password, role = 'user') {
             throw new Error('Este e-mail já está cadastrado.');
         }
 
+        let status = 'aceito';
+
+        // Verificar se já existe um administrador aprovado
+        if (role === 'admin') {
+            const existingAdmin = await db.get(
+                `SELECT id FROM users
+                 WHERE role = 'admin'
+                 AND status = 'aceito'
+                 LIMIT 1`
+            );
+
+            status = existingAdmin ? 'pendente' : 'aceito';
+        }
+
         const passwordHash = await bcrypt.hash(password, 12);
 
         const result = await db.run(
-            `INSERT INTO users (name, email, password, role)
-             VALUES (?, ?, ?, ?)`,
-            [name.trim(), normalizedEmail, passwordHash, role]
+            `INSERT INTO users (
+                name,
+                email,
+                password,
+                role,
+                status
+            ) VALUES (?, ?, ?, ?, ?)`,
+            [
+                name.trim(),
+                normalizedEmail,
+                passwordHash,
+                role,
+                status
+            ]
         );
 
         return db.get(
-            'SELECT id, name, email, role FROM users WHERE id = ?',
+            `SELECT id, name, email, role, status,
+                    admin_id, data_cadastro, data_aprovacao
+             FROM users
+             WHERE id = ?`,
             [result.lastID]
         );
-    });
+    }));
+}
+
+// Aprovar cadastro de administrador
+async function acceptAdmin(id, adminId) {
+    return withDB(db => transaction(db, async () => {
+
+        if (Number(id) === Number(adminId)) {
+            throw new Error(
+                'Você não pode aprovar sua própria solicitação.'
+            );
+        }
+
+        // Verificar quem está aprovando
+        const approver = await db.get(
+            `SELECT id FROM users
+             WHERE id = ?
+             AND role = 'admin'
+             AND status = 'aceito'`,
+            [adminId]
+        );
+
+        if (!approver) {
+            throw new Error(
+                'Apenas administradores ativos podem aprovar solicitações.'
+            );
+        }
+
+        const admin = await db.get(
+            `SELECT id FROM users
+             WHERE id = ?
+             AND role = 'admin'
+             AND status = 'pendente'`,
+            [id]
+        );
+
+        if (!admin) {
+            throw new Error(
+                'Solicitação de administrador não encontrada ou já analisada.'
+            );
+        }
+
+        const result = await db.run(
+            `UPDATE users
+             SET status = 'aceito',
+                 admin_id = ?,
+                 data_aprovacao = CURRENT_TIMESTAMP
+             WHERE id = ?
+             AND role = 'admin'
+             AND status = 'pendente'`,
+            [adminId, id]
+        );
+
+        if (!result.changes) {
+            throw new Error('Não foi possível aprovar a solicitação.');
+        }
+
+        return {
+            message: 'Administrador aprovado com sucesso!',
+            admin: await db.get(
+                `SELECT id, name, email, role, status,
+                        admin_id, data_aprovacao
+                 FROM users
+                 WHERE id = ?`,
+                [id]
+            )
+        };
+    }));
+}
+
+// Recusar cadastro de administrador
+async function rejectAdmin(id, adminId) {
+    return withDB(db => transaction(db, async () => {
+
+        if (Number(id) === Number(adminId)) {
+            throw new Error(
+                'Você não pode recusar sua própria solicitação.'
+            );
+        }
+
+        const approver = await db.get(
+            `SELECT id FROM users
+             WHERE id = ?
+             AND role = 'admin'
+             AND status = 'aceito'`,
+            [adminId]
+        );
+
+        if (!approver) {
+            throw new Error(
+                'Apenas administradores ativos podem recusar solicitações.'
+            );
+        }
+
+        const admin = await db.get(
+            `SELECT id FROM users
+             WHERE id = ?
+             AND role = 'admin'
+             AND status = 'pendente'`,
+            [id]
+        );
+
+        if (!admin) {
+            throw new Error(
+                'Solicitação de administrador não encontrada ou já analisada.'
+            );
+        }
+
+        const result = await db.run(
+            `UPDATE users
+             SET status = 'recusado',
+                 admin_id = ?,
+                 data_aprovacao = CURRENT_TIMESTAMP
+             WHERE id = ?
+             AND role = 'admin'
+             AND status = 'pendente'`,
+            [adminId, id]
+        );
+
+        if (!result.changes) {
+            throw new Error('Não foi possível recusar a solicitação.');
+        }
+
+        return {
+            message: 'Cadastro de administrador recusado com sucesso!',
+            admin: await db.get(
+                `SELECT id, name, email, role, status,
+                        admin_id, data_aprovacao
+                 FROM users
+                 WHERE id = ?`,
+                [id]
+            )
+        };
+    }));
 }
 
 // Buscar usuário pelo ID
 async function searchUserbyId(id) {
     return withDB(db => db.get(
-        `SELECT id, name, email, role
+        `SELECT id, name, email, role, status,
+                admin_id, data_cadastro, data_aprovacao
          FROM users
          WHERE id = ?`,
         [id]
@@ -51,7 +230,7 @@ async function searchUserbyId(id) {
 // Buscar usuário pelo nome
 async function searchUserbyName(name) {
     return withDB(db => db.all(
-        `SELECT id, name, email, role
+        `SELECT id, name, email, role, status
          FROM users
          WHERE name LIKE ?
          ORDER BY name`,
@@ -62,14 +241,14 @@ async function searchUserbyName(name) {
 // Buscar usuário pelo e-mail
 async function searchUserbyEmail(email) {
     return withDB(db => db.get(
-        `SELECT id, name, email, role
+        `SELECT id, name, email, role, status
          FROM users
          WHERE email = ? COLLATE NOCASE`,
         [email.trim()]
     ));
 }
 
-// Atualizar nome e/ou e-mail do usuário
+// Atualizar nome e/ou e-mail
 async function updateUser(id, name, email) {
     return withDB(async db => {
         const user = await db.get(
@@ -87,7 +266,9 @@ async function updateUser(id, name, email) {
             : user.email;
 
         if (!newName || !newEmail) {
-            throw new Error('Nome e e-mail não podem ficar vazios.');
+            throw new Error(
+                'Nome e e-mail não podem ficar vazios.'
+            );
         }
 
         if (newEmail.toLowerCase() !== user.email.toLowerCase()) {
@@ -99,7 +280,9 @@ async function updateUser(id, name, email) {
             );
 
             if (emailExists) {
-                throw new Error('Este e-mail já está sendo utilizado.');
+                throw new Error(
+                    'Este e-mail já está sendo utilizado.'
+                );
             }
         }
 
@@ -118,24 +301,43 @@ async function updateUser(id, name, email) {
 
 // Atualizar nível de acesso
 async function updateRole(id, newRole) {
-    return withDB(async db => {
+    return withDB(db => transaction(db, async () => {
         if (!['user', 'admin'].includes(newRole)) {
             throw new Error('Nível de acesso inválido.');
         }
 
-        const result = await db.run(
-            'UPDATE users SET role = ? WHERE id = ?',
-            [newRole, id]
+        const user = await db.get(
+            'SELECT id, role FROM users WHERE id = ?',
+            [id]
         );
 
-        if (!result.changes) {
+        if (!user) {
             throw new Error('Usuário não encontrado.');
+        }
+
+        // Não conceder privilégios administrativos diretamente
+        if (newRole === 'admin' && user.role !== 'admin') {
+            throw new Error(
+                'A concessão de acesso administrativo deve ocorrer por solicitação e aprovação.'
+            );
+        }
+
+        if (newRole === 'user' && user.role === 'admin') {
+            await db.run(
+                `UPDATE users
+                 SET role = 'user',
+                     status = 'aceito',
+                     admin_id = NULL,
+                     data_aprovacao = NULL
+                 WHERE id = ?`,
+                [id]
+            );
         }
 
         return {
             message: 'Nível de acesso atualizado com sucesso!'
         };
-    });
+    }));
 }
 
 // Atualizar senha
@@ -178,10 +380,10 @@ async function updatePassword(id, currentPassword, newPassword) {
     });
 }
 
-// Retornar informações do usuário
+// Retornar informações do usuário para login
 async function searchUserForLogin(email) {
     return withDB(db => db.get(
-        `SELECT id, name, email, role, password
+        `SELECT id, name, email, role, status, password
          FROM users
          WHERE email = ? COLLATE NOCASE`,
         [email.trim()]
@@ -190,14 +392,29 @@ async function searchUserForLogin(email) {
 
 // Excluir usuário
 async function deleteUser(id) {
-    return withDB(async db => {
+    return withDB(db => transaction(db, async () => {
         const user = await db.get(
-            'SELECT id FROM users WHERE id = ?',
+            'SELECT id, role FROM users WHERE id = ?',
             [id]
         );
 
         if (!user) {
             throw new Error('Usuário não encontrado.');
+        }
+
+        if (user.role === 'admin') {
+            const activeAdmins = await db.get(
+                `SELECT COUNT(*) AS total
+                 FROM users
+                 WHERE role = 'admin'
+                 AND status = 'aceito'`
+            );
+
+            if (activeAdmins.total <= 1 && user.status === 'aceito') {
+                throw new Error(
+                    'Não é possível excluir o último administrador ativo.'
+                );
+            }
         }
 
         const loans = await db.get(
@@ -213,6 +430,14 @@ async function deleteUser(id) {
             );
         }
 
+        // Limpar referências antes de excluir
+        await db.run(
+            `UPDATE users
+             SET admin_id = NULL
+             WHERE admin_id = ?`,
+            [id]
+        );
+
         await db.run(
             'DELETE FROM users WHERE id = ?',
             [id]
@@ -221,20 +446,97 @@ async function deleteUser(id) {
         return {
             message: 'Usuário excluído com sucesso!'
         };
-    });
+    }));
 }
 
 // Selecionar todos os usuários
 async function getAllUsers() {
     return withDB(db => db.all(
-        `SELECT id, name, email, role
+        `SELECT id, name, email, role, status,
+                admin_id, data_cadastro, data_aprovacao
          FROM users
+         WHERE role = 'user'
          ORDER BY name`
     ));
 }
 
+// Buscar solicitações administrativas aceitas
+async function getAcceptedAdmins() {
+    return withDB(async (db) => {
+        return db.all(`
+            SELECT
+                id,
+                name,
+                email,
+                role,
+                status,
+                admin_id,
+                data_cadastro,
+                data_aprovacao
+            FROM users
+            WHERE role = 'admin'
+              AND status = 'aceito'
+            ORDER BY data_aprovacao DESC
+        `);
+    });
+}
+
+// Buscar solicitações administrativas pendentes
+async function getPendingAdmins() {
+    return withDB(db => db.all(
+        `SELECT id, name, email, data_cadastro
+         FROM users
+         WHERE role = 'admin'
+         AND status = 'pendente'
+         ORDER BY data_cadastro`
+    ));
+}
+
+// Buscar solicitações administrativas recusadas
+async function getRejectedAdmins() {
+    return withDB(async (db) => {
+        return db.all(`
+            SELECT
+                id,
+                name,
+                email,
+                role,
+                status,
+                admin_id,
+                data_cadastro,
+                data_aprovacao
+            FROM users
+            WHERE role = 'admin'
+              AND status = 'recusado'
+            ORDER BY data_aprovacao DESC
+        `);
+    });
+}
+
+// Buscar todos os administradores
+async function getAllAdmins() {
+    return withDB(async (db) => {
+        return db.all(`
+            SELECT
+                id,
+                name,
+                email,
+                role,
+                status,
+                admin_id,
+                data_cadastro,
+                data_aprovacao
+            FROM users
+            WHERE role = 'admin'
+            ORDER BY data_cadastro DESC
+        `);
+    });
+}
+
 module.exports = {
     createUser,
+    acceptAdmin,
+    rejectAdmin,
     searchUserbyName,
     searchUserbyEmail,
     searchUserbyId,
@@ -243,5 +545,9 @@ module.exports = {
     updatePassword,
     deleteUser,
     getAllUsers,
+    getAcceptedAdmins,
+    getPendingAdmins,
+    getRejectedAdmins,
+    getAllAdmins,
     searchUserForLogin
 };

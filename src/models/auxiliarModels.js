@@ -26,7 +26,7 @@ async function transaction(db, callback) {
     }
 }
 
-// Normalizar os autores: aceita array ou string
+// Normalizar os autores (array ou string)
 function normalizeAuthors(authors) {
     if (!authors) return [];
 
@@ -48,7 +48,6 @@ function normalizeAuthors(authors) {
 }
 
 // Associar autores a um livro
-
 async function setBookAuthors(db, bookId, authors = []) {
     for (const author of authors) {
         // Ignorar valores vazios

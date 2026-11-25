@@ -21,14 +21,37 @@ async function openDB() {
 async function initializeDB() {
     const db = await openDB();
     try {
+        await db.exec('PRAGMA foreign_keys = ON');
+
+        // Criar tabelas
         await db.exec(`
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name VARCHAR(50) NOT NULL,
                 email VARCHAR(50) NOT NULL UNIQUE,
                 password VARCHAR(255) NOT NULL,
+
                 role VARCHAR(50) NOT NULL DEFAULT 'user'
-                    CHECK (role IN ('user', 'admin'))
+                    CHECK (role IN ('user', 'admin')),
+
+                status VARCHAR(20) NOT NULL DEFAULT 'aceito'
+                    CHECK (
+                        status IN (
+                            'pendente',
+                            'aceito',
+                            'recusado'
+                        )
+                    ),
+
+                admin_id INTEGER,
+
+                data_cadastro DATETIME
+                    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                data_aprovacao DATETIME,
+
+                FOREIGN KEY (admin_id)
+                    REFERENCES users(id) ON DELETE SET NULL
             );
 
             CREATE TABLE IF NOT EXISTS books (
@@ -38,8 +61,10 @@ async function initializeDB() {
                 thumbnail TEXT,
                 descricao TEXT,
                 editora VARCHAR(100),
+
                 qtd_total INTEGER NOT NULL DEFAULT 1
                     CHECK (qtd_total >= 0),
+
                 qtd_disponivel INTEGER NOT NULL DEFAULT 1
                     CHECK (
                         qtd_disponivel >= 0
@@ -110,9 +135,15 @@ async function initializeDB() {
 
             CREATE INDEX IF NOT EXISTS idx_book_authors_author
             ON book_authors(author_id);
+
+            CREATE INDEX IF NOT EXISTS idx_users_role_status
+            ON users(role, status);
+
+            CREATE INDEX IF NOT EXISTS idx_users_admin_id
+            ON users(admin_id);
         `);
 
-        // Integridade das chaves estrangeiras
+        // Verificar integridade das chaves estrangeiras
         const foreignKeyErrors = await db.all(
             'PRAGMA foreign_key_check'
         );
@@ -124,16 +155,23 @@ async function initializeDB() {
             );
         }
 
-        console.log('Banco de dados inicializado com sucesso!');
+        console.log(
+            'Banco de dados inicializado com sucesso!'
+        );
 
     } catch (error) {
-        console.error('Erro ao inicializar o banco:', error);
+        console.error(
+            'Erro ao inicializar o banco:',
+            error
+        );
+
         throw error;
 
     } finally {
         await db.close();
     }
 }
+
 
 async function importBook(term) {
     const db = await openDB();
