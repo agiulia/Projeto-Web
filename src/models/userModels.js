@@ -1,20 +1,10 @@
 
 const bcrypt = require('bcrypt');
-const { withDB } = require('./auxiliarModels');
 
-// Executar operações em transação
-async function transaction(db, callback) {
-    await db.exec('BEGIN IMMEDIATE');
-
-    try {
-        const result = await callback();
-        await db.exec('COMMIT');
-        return result;
-    } catch (error) {
-        await db.exec('ROLLBACK');
-        throw error;
-    }
-}
+const {
+    withDB,
+    transaction
+} = require('./auxiliarModels');
 
 // Criar usuário
 async function createUser(name, email, password, role = 'user') {

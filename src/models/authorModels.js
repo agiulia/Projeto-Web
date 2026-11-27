@@ -1,5 +1,3 @@
-const { openDB } = require('../config/database');
-
 // Atualizar nome do autor
 async function updateAuthor(id, nome) {
     if (!id || !nome || !nome.trim()) {

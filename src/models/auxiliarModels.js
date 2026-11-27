@@ -1,4 +1,3 @@
-
 const { openDB } = require('../config/database');
 
 // Executar operações e fechar a conexão automaticamente
