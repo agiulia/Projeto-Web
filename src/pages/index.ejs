@@ -1,103 +1,34 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biblioteca</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
+<%- include('partials/header', { titulo: 'Biblioteca' }) %>
 
-<body class="bg-light min-vh-100 d-flex flex-column">
+<main class="container my-5 flex-grow-1">
 
-    <header class="bg-primary text-white p-4">
-        <h1>Bem-vindo à Biblioteca</h1>
+    <form action="/buscar" method="get" class="bg-white p-4 rounded shadow mb-4">
 
-        <nav>
-            <ul class="nav">
-                <li class="nav-item">
-                    <a class="nav-link text-white" href="/">Home</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-white" href="/usuarios/login">Login</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-white" href="/usuarios/cadastro">Cadastro</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-white" href="/interface">Interface</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-white" href="/usuarios/perfil">Perfil</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-white" href="/admin/perfilAdmin">ADM</a>
-                </li>
-            </ul>
-        </nav>
-    </header>
+        <label for="busca" class="form-label">Campo de busca</label>
+        <input type="text" id="busca" name="busca" value="<%= busca %>" class="form-control mb-3" placeholder="Digite o título ou autor" required>
 
-    <main class="container my-5 flex-grow-1">
+        <label for="pesquisarPor" class="form-label">Pesquisar por</label>
+        <select id="pesquisarPor" name="pesquisarPor" class="form-select mb-3">
+            <option disabled value="">Selecione uma opção</option>
+            <option selected value="titulo">Título</option>
+            <option value="autor">Autor</option>
+        </select>
 
-        <form action="/buscar" method="get" class="bg-white p-4 rounded shadow mb-4">
-
-            <label for="busca" class="form-label">Campo de busca</label>
-            <input type="text" id="busca" name="busca" value="<%= busca %>"
-                class="form-control mb-3" placeholder="Digite o título ou autor" required>
-
-            <label for="pesquisarPor" class="form-label">Pesquisar por</label>
-            <select id="pesquisarPor" name="pesquisarPor" class="form-select mb-3">
-                <option disabled value="">Selecione uma opção</option>
-                <option selected value="titulo">Título</option>
-                <option value="autor">Autor</option>
-            </select>
-
-            <button type="submit" class="btn btn-primary">Pesquisar</button>
+        <button type="submit" class="btn btn-primary">Pesquisar</button>
         </form>
 
         <% if (erro) { %>
-            <div class="alert alert-danger"><%= erro %></div>
+            <div class="alert alert-danger">
+        <%= erro %>
+            </div>
         <% } %>
 
-        <% if (busca && !erro && livros.length === 0) { %>
+        <% if (busca && !erro && livros.length===0) { %>
             <div class="alert alert-warning">Nenhum livro encontrado.</div>
         <% } %>
 
-        <% livros.forEach((livro) => { %>
-            <div class="bg-white p-4 rounded shadow mb-4">
-                <div class="row g-4">
-
-                    <div class="col-12 col-md-5">
-                        <div class="bg-light border rounded d-flex align-items-center justify-content-center h-100 p-5">
-                            <% if (livro.thumbnail) { %>
-                                <img src="<%= livro.thumbnail %>"
-                                    alt="Capa de <%= livro.title %>"
-                                    class="img-fluid rounded">
-                            <% } else { %>
-                                <span class="text-muted">Sem capa</span>
-                            <% } %>
-                        </div>
-                    </div>
-
-                    <div class="col-12 col-md-7">
-                        <div class="bg-light border rounded p-4 mb-4">
-                            <h2 class="text-primary"><%= livro.title %></h2>
-                            <p><strong>Autor:</strong> <%= livro.authors.join(', ') %></p>
-                        </div>
-
-                        <div class="bg-light border rounded p-4 mb-4">
-                            <h3 class="text-primary">Sinopse</h3>
-                            <p><%= livro.description %></p>
-                        </div>
-
-                        <div class="bg-light border rounded p-3">
-                            <button type="button" class="btn btn-primary w-100">
-                                Reservar livro
-                            </button>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
+        <% livros.forEach((livro)=> { %>
+        <%- include('partials/livro', { livro }) %>
         <% }) %>
 
         <div class="bg-white p-4 rounded shadow mt-5">
@@ -107,11 +38,6 @@
             </div>
         </div>
 
-    </main>
+</main>
 
-    <footer class="bg-white text-center p-3 border-top mt-auto">
-        <p class="mb-0">© 2026 Meu Site. Todos os direitos reservados.</p>
-    </footer>
-
-</body>
-</html>
+<%- include('partials/footer') %>

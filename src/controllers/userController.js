@@ -109,7 +109,7 @@ async function login(req, res) {
             role: user.role,
         };
 
-        res.redirect(user.role === 'admin' ? '/admin' : '/');
+        res.redirect(user.role === '/admin' ? '/admin/perfilAdmin' : '/');
     } catch (err) {
         console.error(err);
         res.status(500).render('usuarios/login', {

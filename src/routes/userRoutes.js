@@ -11,10 +11,9 @@ router.post('/login', userController.login);
 router.get('/logout', userController.logout);
 
 // ele msm
-// ele msm
 router.get('/perfil', requireAuth, userController.showProfile);
 router.post('/perfil', requireAuth, userController.updateProfile);
-
+        
 // so ADM
 router.get('/', requireAdmin, userController.listUsers);
 router.post('/', requireAdmin, userController.addUser);
