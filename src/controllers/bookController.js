@@ -1,4 +1,4 @@
-const { searchBooks } = require('../services/googleBooksService');
+const { searchBooks, searchBooksByAuthor, } = require('../services/googleBooksService');
 const {
     createBook,
     updateBook,
@@ -12,14 +12,19 @@ const {
 
 async function buscar(req, res) {
     const busca = req.query.busca;
-
+    const pesquisarPor = req.query.pesquisarPor;
     if (!busca) {
         return res.redirect('/');
     }
 
     try {
+        if (pesquisarPor == "autor"){
+            const livros = await searchBooksByAuthor(busca);
+        res.render('index', { livros, busca, erro: null });
+        } else {
         const livros = await searchBooks(busca);
         res.render('index', { livros, busca, erro: null });
+        }
     } catch (err) {
         console.error(err.message);
         res.status(500).render('index', {
