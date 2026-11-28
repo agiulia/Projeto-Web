@@ -32,4 +32,7 @@ app.use('/livros', bookRoutes);
 const adminRoutes = require('./routes/adminRoutes');
 app.use('/admin', adminRoutes);
 
+const loanRoutes = require('./routes/loanRoutes')
+app.use('/emprestimos', loanRoutes);
+
 module.exports = app;

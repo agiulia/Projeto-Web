@@ -27,8 +27,11 @@
             <div class="bg-light border rounded p-3">
                 <% if (usuario) { %>
                     <form action="/emprestimos" method="POST">
-                        <input type="hidden" name="google_id" value="<%= livro.id %>">
-                        <input type="hidden" name="book_title" value="<%= livro.title %>">
+                        <input type="hidden" name="isbn" value="<%= livro.isbn || livro.id %>">
+                        <input type="hidden" name="titulo" value="<%= livro.title %>">
+                        <input type="hidden" name="autores" value="<%= livro.authors.join(', ') %>">
+                        <input type="hidden" name="thumbnail" value="<%= livro.thumbnail || '' %>">
+                        <input type="hidden" name="descricao" value="<%= livro.description || '' %>">
                         <button type="submit" class="btn btn-primary w-100">Reservar livro</button>
                     </form>
                 <% } else { %>

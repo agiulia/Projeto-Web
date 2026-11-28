@@ -1,0 +1,64 @@
+<%- include('../partials/header', { titulo: 'Cadastrar livro | Biblioteca' }) %>
+
+<main class="container my-5 flex-grow-1">
+
+    <div class="bg-white p-4 rounded shadow">
+
+        <h2 class="text-primary mb-4">Cadastrar livro</h2>
+
+        <% if (erro) { %>
+            <div class="alert alert-danger"><%= erro %></div>
+        <% } %>
+
+        <% if (sucesso) { %>
+            <div class="alert alert-success"><%= sucesso %></div>
+        <% } %>
+
+        <form action="/admin/livros" method="POST">
+
+            <div class="mb-3">
+                <label for="titulo" class="form-label">Título</label>
+                <input type="text" class="form-control" id="titulo" name="titulo" required>
+            </div>
+
+            <div class="mb-3">
+                <label for="autores" class="form-label">Autores (separe por vírgula)</label>
+                <input type="text" class="form-control" id="autores" name="autores">
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="isbn" class="form-label">ISBN</label>
+                    <input type="text" class="form-control" id="isbn" name="isbn">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="editora" class="form-label">Editora</label>
+                    <input type="text" class="form-control" id="editora" name="editora">
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="thumbnail" class="form-label">Link da capa</label>
+                <input type="url" class="form-control" id="thumbnail" name="thumbnail">
+            </div>
+
+            <div class="mb-3">
+                <label for="descricao" class="form-label">Sinopse</label>
+                <textarea class="form-control" id="descricao" name="descricao" rows="4"></textarea>
+            </div>
+
+            <div class="mb-3">
+                <label for="qtd_total" class="form-label">Quantidade de exemplares</label>
+                <input type="number" class="form-control" id="qtd_total" name="qtd_total"
+                    min="1" value="1" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Cadastrar</button>
+            <a href="/admin/perfilAdmin" class="btn btn-outline-primary">Voltar</a>
+        </form>
+
+    </div>
+
+</main>
+
+<%- include('../partials/footer') %>

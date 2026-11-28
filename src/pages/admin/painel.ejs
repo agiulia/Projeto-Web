@@ -1,0 +1,80 @@
+<%- include('../partials/header', { titulo: 'Painel Administrativo | Biblioteca' }) %>
+
+<main class="container my-5 flex-grow-1">
+
+    <div class="bg-white p-4 rounded shadow">
+
+        <h2 class="text-primary mb-4">Painel administrativo</h2>
+
+        <% if (erro) { %>
+            <div class="alert alert-danger"><%= erro %></div>
+        <% } %>
+
+        <div class="bg-light border rounded p-4 mb-4">
+            <h4 class="text-primary mb-3">Pedidos de empréstimo</h4>
+
+            <% if (emprestimos.length === 0) { %>
+                <p class="mb-0">Nenhum empréstimo registrado.</p>
+            <% } else { %>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover bg-white align-middle">
+                        <thead class="table-primary">
+                            <tr>
+                                <th>Usuário</th>
+                                <th>Livro</th>
+                                <th>Data</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            <% emprestimos.forEach((emp) => { %>
+                                <tr>
+                                    <td><%= emp.usuario %></td>
+                                    <td><%= emp.titulo %></td>
+                                    <td><%= emp.data %></td>
+                                    <td>
+                                        <% if (emp.status === 'aceito') { %>
+                                            <span class="badge bg-success"><%= emp.statusLabel %></span>
+                                        <% } else if (emp.status === 'pendente') { %>
+                                            <span class="badge bg-warning text-dark"><%= emp.statusLabel %></span>
+                                        <% } else if (emp.status === 'recusado') { %>
+                                            <span class="badge bg-danger"><%= emp.statusLabel %></span>
+                                        <% } else { %>
+                                            <span class="badge bg-secondary"><%= emp.statusLabel %></span>
+                                        <% } %>
+                                    </td>
+                                    <td>
+                                        <% if (emp.status === 'pendente') { %>
+                                            <div class="d-flex gap-2">
+                                                <form action="/admin/emprestimos/<%= emp.id %>/aceitar" method="POST">
+                                                    <button type="submit" class="btn btn-success btn-sm">Aceitar</button>
+                                                </form>
+                                                <form action="/admin/emprestimos/<%= emp.id %>/recusar" method="POST">
+                                                    <button type="submit" class="btn btn-danger btn-sm">Recusar</button>
+                                                </form>
+                                            </div>
+                                        <% } else if (emp.status === 'aceito') { %>
+                                            <form action="/admin/emprestimos/<%= emp.id %>/devolver" method="POST">
+                                                <button type="submit" class="btn btn-primary btn-sm">Devolver</button>
+                                            </form>
+                                        <% } else { %>
+                                            <span class="text-muted">-</span>
+                                        <% } %>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            <% } %>
+        </div>
+
+        <a href="/admin/perfilAdmin" class="btn btn-outline-primary">Meu perfil</a>
+
+    </div>
+
+</main>
+
+<%- include('../partials/footer') %>

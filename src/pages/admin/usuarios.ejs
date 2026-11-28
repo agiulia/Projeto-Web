@@ -1,0 +1,67 @@
+<%- include('../partials/header', { titulo: 'Gerenciar usuários | Biblioteca' }) %>
+
+<main class="container my-5 flex-grow-1">
+
+    <div class="bg-white p-4 rounded shadow">
+
+        <h2 class="text-primary mb-4">Gerenciar usuários</h2>
+
+        <% if (erro) { %>
+            <div class="alert alert-danger"><%= erro %></div>
+        <% } %>
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover bg-white align-middle">
+                <thead class="table-primary">
+                    <tr>
+                        <th>Nome</th>
+                        <th>E-mail</th>
+                        <th>Tipo</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    <% usuarios.forEach((u) => { %>
+                        <tr>
+                            <td><%= u.name %></td>
+                            <td><%= u.email %></td>
+                            <td>
+                                <% if (u.role === 'admin') { %>
+                                    <span class="badge bg-primary">Administrador</span>
+                                <% } else { %>
+                                    <span class="badge bg-secondary">Usuário</span>
+                                <% } %>
+                            </td>
+                            <td>
+                                <% if (u.id === usuario.id) { %>
+                                    <span class="text-muted">Você</span>
+                                <% } else { %>
+                                    <div class="d-flex gap-2">
+                                        <% if (u.role === 'admin') { %>
+                                            <form action="/admin/usuarios/<%= u.id %>/role" method="POST">
+                                                <input type="hidden" name="role" value="user">
+                                                <button type="submit" class="btn btn-outline-primary btn-sm">Tornar usuário</button>
+                                            </form>
+                                        <% } %>
+
+                                        <form action="/admin/usuarios/<%= u.id %>/excluir" method="POST"
+                                            onsubmit="return confirm('Excluir este usuário?')">
+                                            <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
+                                        </form>
+                                    </div>
+                                <% } %>
+                            </td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+
+        <a href="/admin/perfilAdmin" class="btn btn-outline-primary">Voltar</a>
+
+    </div>
+
+</main>
+
+<%- include('../partials/footer') %>
