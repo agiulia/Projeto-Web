@@ -292,6 +292,7 @@ async function updateUser(id, name, email) {
 // Atualizar nível de acesso
 async function updateRole(id, newRole) {
     return withDB(db => transaction(db, async () => {
+
         if (!['user', 'admin'].includes(newRole)) {
             throw new Error('Nível de acesso inválido.');
         }
@@ -305,14 +306,20 @@ async function updateRole(id, newRole) {
             throw new Error('Usuário não encontrado.');
         }
 
-        // Não conceder privilégios administrativos diretamente
-        if (newRole === 'admin' && user.role !== 'admin') {
-            throw new Error(
-                'A concessão de acesso administrativo deve ocorrer por solicitação e aprovação.'
-            );
+        if (user.role === newRole) {
+            return {
+                message: 'O usuário já possui este nível de acesso.'
+            };
         }
 
-        if (newRole === 'user' && user.role === 'admin') {
+        if (newRole === 'admin') {
+            await db.run(
+                `UPDATE users
+                 SET role = 'admin'
+                 WHERE id = ?`,
+                [id]
+            );
+        } else {
             await db.run(
                 `UPDATE users
                  SET role = 'user',
